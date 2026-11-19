@@ -327,11 +327,17 @@ async def platform_selected(callback: types.CallbackQuery, state: FSMContext):
     with suppress(TelegramBadRequest):
         await callback.message.edit_text(
             f"You selected <b>{html.escape(platform)}</b>.\n\n"
-            "Please enter your username or handle for this account (e.g., <code>@handle</code> or profile link):"
+            "Please enter your handle for this account starting with the <b>@</b> symbol (e.g., <code>@yourhandle</code>):"
         )
 
 async def process_handle(message: types.Message, state: FSMContext):
     handle = (message.text or "").strip()
+    if not handle.startswith("@") or len(handle) < 2:
+        await message.answer(
+            "❌ Invalid format. The handle must start with the <b>@</b> symbol (e.g., <code>@yourhandle</code>). Try again:"
+        )
+        return
+
     await state.update_data(handle=handle)
     await state.set_state(BotStates.entering_password)
     await message.answer("🔑 Please enter the password for this account:")
@@ -383,6 +389,8 @@ async def update_stats_command(message: types.Message):
         return
 
     target_username = parts[1]
+    if not target_username.startswith("@"):
+        target_username = f"@{target_username}"
     try:
         new_views = int(parts[2])
         new_money = float(parts[3])
