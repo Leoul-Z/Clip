@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURATION ---
-TOKEN = os.getenv("BOT_TOKEN", "9168926051:AAEbHLelqip2hh0NvkHpWDjPN55BevgvLUo")
+TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 ADMIN_IDS = [1438037591]
 
