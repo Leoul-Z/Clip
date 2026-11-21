@@ -5,14 +5,14 @@ import os
 from contextlib import suppress
 
 from aiohttp import web
-from aiogram import Bot, Dispatcher, F, types
+from aiogram import BaseMiddleware, Bot, Dispatcher, F, types
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, TelegramObject
 from dotenv import load_dotenv
 
 # Load variables from .env
@@ -422,6 +422,46 @@ def get_platforms_keyboard():
             [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="back_to_menu")],
         ]
     )
+
+# --- MIDDLEWARE: ENFORCE USERNAME LOCK ---
+class UsernameLockMiddleware(BaseMiddleware):
+    async def __call__(self, handler, event: TelegramObject, data: dict):
+        tg_user = data.get("event_from_user") or getattr(event, "from_user", None)
+        if not tg_user:
+            return await handler(event, data)
+
+        # Allow admins to always access the bot
+        if tg_user.id in ADMIN_IDS:
+            return await handler(event, data)
+
+        db_user = await db.get_user(tg_user.id)
+        if db_user and db_user.get("telegram_username"):
+            registered_username = db_user["telegram_username"].strip()
+            if not registered_username.startswith("@"):
+                registered_username = f"@{registered_username}"
+
+            current_username = f"@{tg_user.username}" if tg_user.username else None
+
+            # If the user changed or removed their Telegram username
+            if not current_username or current_username.lower() != registered_username.lower():
+                blocked_msg = (
+                    f"⛔ <b>Access Blocked!</b>\n\n"
+                    f"You originally registered as <b>{html.escape(registered_username)}</b>, "
+                    f"but your current Telegram username is <b>{html.escape(current_username or 'None')}</b>.\n\n"
+                    f"To protect your stats, submissions, and payments, the bot will not work until you "
+                    f"change your Telegram username back to <b>{html.escape(registered_username)}</b>.\n\n"
+                    f"👉 <i>Go to Telegram Settings → Edit Profile → Username and change it back to <b>{html.escape(registered_username)}</b>.</i>"
+                )
+                if isinstance(event, types.CallbackQuery):
+                    await event.answer(
+                        f"⛔ Change your username back to {registered_username} to use this bot.",
+                        show_alert=True,
+                    )
+                elif isinstance(event, types.Message):
+                    await event.answer(blocked_msg)
+                return
+
+        return await handler(event, data)
 
 # --- HANDLERS ---
 async def start_command(message: types.Message, state: FSMContext):
@@ -914,6 +954,10 @@ async def main():
     runner = await start_web_server()
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
+
+    # Middlewares: Block users if they changed their Telegram username
+    dp.message.outer_middleware(UsernameLockMiddleware())
+    dp.callback_query.outer_middleware(UsernameLockMiddleware())
 
     # Commands
     dp.message.register(start_command, Command("start"))
