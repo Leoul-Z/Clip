@@ -48,8 +48,10 @@ class Database:
                         chat_id BIGINT PRIMARY KEY,
                         telegram_username TEXT,
                         views INTEGER DEFAULT 0,
-                        money DOUBLE PRECISION DEFAULT 0.0
+                        money DOUBLE PRECISION DEFAULT 0.0,
+                        payment_info TEXT
                     );
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS payment_info TEXT;
                     CREATE TABLE IF NOT EXISTS social_accounts (
                         id SERIAL PRIMARY KEY,
                         chat_id BIGINT,
@@ -68,9 +70,14 @@ class Database:
                         chat_id INTEGER PRIMARY KEY,
                         telegram_username TEXT,
                         views INTEGER DEFAULT 0,
-                        money REAL DEFAULT 0.0
+                        money REAL DEFAULT 0.0,
+                        payment_info TEXT
                     )
                 """)
+                try:
+                    await db.execute("ALTER TABLE users ADD COLUMN payment_info TEXT")
+                except Exception:
+                    pass
                 await db.execute("""
                     CREATE TABLE IF NOT EXISTS social_accounts (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,7 +99,7 @@ class Database:
         if self.is_postgres:
             async with self.pool.acquire() as conn:
                 row = await conn.fetchrow(
-                    "SELECT telegram_username, views, money FROM users WHERE chat_id = $1",
+                    "SELECT telegram_username, views, money, payment_info FROM users WHERE chat_id = $1",
                     chat_id,
                 )
                 return dict(row) if row else None
@@ -100,13 +107,35 @@ class Database:
             import aiosqlite
             async with aiosqlite.connect(self.db_path) as db:
                 async with db.execute(
-                    "SELECT telegram_username, views, money FROM users WHERE chat_id = ?",
+                    "SELECT telegram_username, views, money, payment_info FROM users WHERE chat_id = ?",
                     (chat_id,),
                 ) as cursor:
                     row = await cursor.fetchone()
                     if row:
-                        return {"telegram_username": row[0], "views": row[1], "money": row[2]}
+                        return {
+                            "telegram_username": row[0],
+                            "views": row[1],
+                            "money": row[2],
+                            "payment_info": row[3],
+                        }
                     return None
+
+    async def update_payment_info(self, chat_id: int, payment_info: str):
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE users SET payment_info = $1 WHERE chat_id = $2",
+                    payment_info,
+                    chat_id,
+                )
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute(
+                    "UPDATE users SET payment_info = ? WHERE chat_id = ?",
+                    (payment_info, chat_id),
+                )
+                await db.commit()
 
     async def upsert_user(self, chat_id: int, telegram_username: str):
         if self.is_postgres:
@@ -203,6 +232,7 @@ class BotStates(StatesGroup):
     main_menu = State()
     entering_handle = State()
     entering_password = State()
+    entering_payment = State()
 
 # --- KEYBOARDS ---
 def get_main_menu_keyboard():
@@ -213,6 +243,14 @@ def get_main_menu_keyboard():
                 InlineKeyboardButton(text="📊 Stats", callback_data="menu_stats"),
                 InlineKeyboardButton(text="🚀 Progress", callback_data="menu_progress"),
             ],
+            [InlineKeyboardButton(text="💳 Payment", callback_data="menu_payment")],
+        ]
+    )
+
+def get_back_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="back_to_menu")]
         ]
     )
 
@@ -331,7 +369,26 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
                     "Please type /start to register your account first.",
                     reply_markup=get_main_menu_keyboard(),
                 )
+        elif data == "menu_payment":
+            await state.set_state(BotStates.entering_payment)
+            user = await db.get_user(chat_id)
+            current_info = user.get("payment_info") if user else None
+
+            if current_info:
+                msg_text = (
+                    f"💳 <b>Current Payment Details:</b>\n"
+                    f"<code>{html.escape(current_info)}</code>\n\n"
+                    f"Write your bank name and bank account number to update:"
+                )
+            else:
+                msg_text = "Write your bank name and bank account number:"
+
+            await callback.message.edit_text(
+                msg_text,
+                reply_markup=get_back_keyboard(),
+            )
         elif data == "back_to_menu":
+            await state.set_state(BotStates.main_menu)
             await callback.message.edit_text(
                 "Main Menu:",
                 reply_markup=get_main_menu_keyboard(),
@@ -419,6 +476,45 @@ async def process_password(message: types.Message, state: FSMContext):
         reply_markup=get_main_menu_keyboard(),
     )
 
+# --- PAYMENT FLOW ---
+async def process_payment_info(message: types.Message, state: FSMContext):
+    text = (message.text or "").strip()
+    if not text or len(text) < 3:
+        await message.answer(
+            "⚠️ Please write your bank name and bank account number:",
+            reply_markup=get_back_keyboard(),
+        )
+        return
+
+    chat_id = message.chat.id
+    await db.update_payment_info(chat_id, text)
+
+    user = await db.get_user(chat_id)
+    telegram_username = user["telegram_username"] if user else f"id_{chat_id}"
+
+    # Notify admin(s) with user bank info
+    admin_notification = (
+        f"💳 <b>Payment Details Submitted!</b>\n\n"
+        f"<b>username:</b> {html.escape(telegram_username)}\n"
+        f"<b>chat_id:</b> <code>{chat_id}</code>\n\n"
+        f"<b>Bank Details:</b>\n"
+        f"<code>{html.escape(text)}</code>"
+    )
+
+    for admin_id in ADMIN_IDS:
+        try:
+            await message.bot.send_message(admin_id, admin_notification)
+        except Exception as e:
+            logging.warning(f"Could not send payment notification to admin {admin_id}: {e}")
+
+    await state.clear()
+    await state.set_state(BotStates.main_menu)
+    await message.answer(
+        f"✅ Payment details saved successfully!\n\n"
+        f"<b>Saved Details:</b>\n<code>{html.escape(text)}</code>",
+        reply_markup=get_main_menu_keyboard(),
+    )
+
 # --- ADMIN COMMAND: UPDATE STATS ---
 async def update_stats_command(message: types.Message):
     if not message.from_user or message.from_user.id not in ADMIN_IDS:
@@ -483,6 +579,7 @@ async def main():
     dp.message.register(process_username, BotStates.waiting_for_username)
     dp.message.register(process_handle, BotStates.entering_handle)
     dp.message.register(process_password, BotStates.entering_password)
+    dp.message.register(process_payment_info, BotStates.entering_payment)
 
     # Callbacks
     dp.callback_query.register(
