@@ -533,14 +533,6 @@ def get_back_keyboard():
         ]
     )
 
-def get_caption_keyboard():
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="⏭ Skip Caption", callback_data="sub_skip_caption")],
-            [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="back_to_menu")],
-        ]
-    )
-
 def get_platforms_keyboard(linked_platforms=None):
     linked = set(p.lower() for p in (linked_platforms or []))
     tw_text = "🐦 Twitter ✅" if "twitter" in linked else "🐦 Twitter"
@@ -858,19 +850,6 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
                 "🔗 Please send the link to your video or clip (e.g. TikTok, YouTube, Instagram, or Twitter link):",
                 reply_markup=get_back_keyboard(),
             )
-        elif data == "sub_skip_caption":
-            state_data = await state.get_data()
-            link = state_data.get("submission_link")
-            if not link:
-                await state.set_state(BotStates.main_menu)
-                await callback.message.edit_text(
-                    "⚠️ Submission session expired. Please submit your link again from the menu:",
-                    reply_markup=get_main_menu_keyboard(),
-                )
-                return
-            await finalize_submission(
-                callback.message, state, link, caption=None, chat_id=callback.message.chat.id
-            )
         elif data == "back_to_menu":
             await state.set_state(BotStates.main_menu)
             await callback.message.edit_text(
@@ -1042,19 +1021,25 @@ async def process_submission_link(message: types.Message, state: FSMContext):
         await finalize_submission(message, state, url_candidate, caption)
         return
 
-    # Store link and ask for caption
+    # Store link and ask for mandatory caption
     await state.update_data(submission_link=url_candidate)
     await state.set_state(BotStates.entering_submission_caption)
     await message.answer(
         "📝 <b>Link received!</b>\n\n"
-        "Now please write the <b>caption</b> or description for this video link\n"
-        "<i>(Or tap <b>⏭ Skip Caption</b> if you don't want to add one)</i>:",
-        reply_markup=get_caption_keyboard(),
+        "Now please enter the <b>caption</b> used for this video link:",
+        reply_markup=get_back_keyboard(),
         disable_web_page_preview=True,
     )
 
 async def process_submission_caption(message: types.Message, state: FSMContext):
     caption = (message.text or "").strip()
+    if not caption or len(caption) < 2:
+        await message.answer(
+            "⚠️ Caption is required. Please write the caption for this video link:",
+            reply_markup=get_back_keyboard(),
+        )
+        return
+
     data = await state.get_data()
     link = data.get("submission_link")
 
@@ -1388,8 +1373,7 @@ async def main():
         menu_callback_router,
         F.data.startswith("menu_")
         | (F.data == "back_to_menu")
-        | (F.data == "sub_new")
-        | (F.data == "sub_skip_caption"),
+        | (F.data == "sub_new"),
     )
     dp.callback_query.register(platform_selected, F.data.startswith("plat_"))
 
