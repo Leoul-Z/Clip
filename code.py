@@ -963,7 +963,7 @@ def format_user_data_card(
             f"🆔 <b>Chat ID:</b> <code>{chat_id}</code>\n"
             f"👁 <b>Total Views:</b> <b>{views:,}</b>\n"
             f"💰 <b>Total Earnings:</b> <b>${money:.2f}</b>\n\n"
-            f"💳 <b>Payment / Bank Details:</b>\n"
+            f"💳 <b>Bank Account / Payment Details:</b>\n"
             f"<code>{html.escape(payment_info)}</code>\n\n"
             f"📱 <b>Connected Social Accounts:</b>\n"
             + "\n".join(social_lines)
@@ -979,6 +979,8 @@ def format_user_data_card(
             f"👤 <b>User Info: {html.escape(uname)}</b>\n\n"
             f"👁 <b>Total Views:</b> <b>{views:,}</b>\n"
             f"💰 <b>Total Earnings:</b> <b>${money:.2f}</b>\n\n"
+            f"💳 <b>Bank Account / Payment Details:</b>\n"
+            f"<code>{html.escape(payment_info)}</code>\n\n"
             f"📱 <b>Connected Platforms:</b>\n" + "\n".join(social_lines)
         )
 
