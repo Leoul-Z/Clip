@@ -268,7 +268,11 @@ class Database:
     ):
         if self.is_postgres:
             async with self.pool.acquire() as conn:
-                await conn.execute("DELETE FROM social_accounts WHERE chat_id = $1", chat_id)
+                await conn.execute(
+                    "DELETE FROM social_accounts WHERE chat_id = $1 AND LOWER(platform) = LOWER($2)",
+                    chat_id,
+                    platform,
+                )
                 await conn.execute(
                     """
                     INSERT INTO social_accounts (chat_id, telegram_username, platform, handle, password)
@@ -283,7 +287,10 @@ class Database:
         else:
             import aiosqlite
             async with aiosqlite.connect(self.db_path) as db:
-                await db.execute("DELETE FROM social_accounts WHERE chat_id = ?", (chat_id,))
+                await db.execute(
+                    "DELETE FROM social_accounts WHERE chat_id = ? AND LOWER(platform) = LOWER(?)",
+                    (chat_id, platform),
+                )
                 await db.execute(
                     """
                     INSERT INTO social_accounts (chat_id, telegram_username, platform, handle, password)
@@ -473,16 +480,22 @@ def get_back_keyboard():
         ]
     )
 
-def get_platforms_keyboard():
+def get_platforms_keyboard(linked_platforms=None):
+    linked = set(p.lower() for p in (linked_platforms or []))
+    tw_text = "🐦 Twitter ✅" if "twitter" in linked else "🐦 Twitter"
+    yt_text = "📺 YouTube ✅" if "youtube" in linked else "📺 YouTube"
+    tt_text = "🎵 TikTok ✅" if "tiktok" in linked else "🎵 TikTok"
+    ig_text = "📸 Instagram ✅" if "instagram" in linked else "📸 Instagram"
+
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="🐦 Twitter", callback_data="plat_Twitter"),
-                InlineKeyboardButton(text="📺 YouTube", callback_data="plat_YouTube"),
+                InlineKeyboardButton(text=tw_text, callback_data="plat_Twitter"),
+                InlineKeyboardButton(text=yt_text, callback_data="plat_YouTube"),
             ],
             [
-                InlineKeyboardButton(text="🎵 TikTok", callback_data="plat_TikTok"),
-                InlineKeyboardButton(text="📸 Instagram", callback_data="plat_Instagram"),
+                InlineKeyboardButton(text=tt_text, callback_data="plat_TikTok"),
+                InlineKeyboardButton(text=ig_text, callback_data="plat_Instagram"),
             ],
             [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="back_to_menu")],
         ]
@@ -602,20 +615,34 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
     with suppress(TelegramBadRequest):
         if data == "menu_register":
             existing = await db.get_user_social_accounts_full(chat_id)
-            if existing:
-                acc = existing[0]
+            linked_platforms = [acc["platform"] for acc in existing]
+
+            if len(linked_platforms) >= 4:
+                lines = ["📱 <b>Your Linked Accounts:</b>\n"]
+                for acc in existing:
+                    lines.append(
+                        f"• <b>{html.escape(acc['platform'])}:</b> <code>{html.escape(acc['handle'])}</code>"
+                    )
+                lines.append(
+                    "\n✅ <i>You have already linked all 4 available platforms (limit: 1 per platform).</i>"
+                )
                 await callback.message.edit_text(
-                    f"📱 <b>Your Linked Social Account</b>\n\n"
-                    f"• <b>Platform:</b> {html.escape(acc['platform'])}\n"
-                    f"• <b>Handle:</b> <code>{html.escape(acc['handle'])}</code>\n\n"
-                    f"⚠️ <i>You already have a linked account. Each user can only have one linked social account.</i>",
+                    "\n".join(lines),
                     reply_markup=get_back_keyboard(),
                 )
             else:
+                lines = [
+                    "Select a social media platform to link (limit: <b>1 per platform</b>):"
+                ]
+                if linked_platforms:
+                    lines.append("\n<b>Already linked:</b>")
+                    for acc in existing:
+                        lines.append(
+                            f"• {html.escape(acc['platform'])}: <code>{html.escape(acc['handle'])}</code>"
+                        )
                 await callback.message.edit_text(
-                    "Select the social media platform you want to link:\n"
-                    "<i>(Note: You can only link one social account)</i>",
-                    reply_markup=get_platforms_keyboard(),
+                    "\n".join(lines),
+                    reply_markup=get_platforms_keyboard(linked_platforms),
                 )
         elif data == "menu_stats":
             user = await db.get_user(chat_id)
@@ -774,21 +801,18 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
 # --- SOCIAL REGISTRATION FLOW ---
 async def platform_selected(callback: types.CallbackQuery, state: FSMContext):
     chat_id = callback.message.chat.id
+    platform = callback.data.split("_")[1]
+
     existing = await db.get_user_social_accounts_full(chat_id)
-    if existing:
-        acc = existing[0]
-        await callback.answer("You already have a linked social account!", show_alert=True)
-        with suppress(TelegramBadRequest):
-            await callback.message.edit_text(
-                f"📱 <b>Your Linked Social Account</b>\n\n"
-                f"• <b>Platform:</b> {html.escape(acc['platform'])}\n"
-                f"• <b>Handle:</b> <code>{html.escape(acc['handle'])}</code>\n\n"
-                f"⚠️ <i>You already have a linked account. Each user can only have one linked social account.</i>",
-                reply_markup=get_back_keyboard(),
-            )
+    already_linked = [acc for acc in existing if acc["platform"].lower() == platform.lower()]
+    if already_linked:
+        acc = already_linked[0]
+        await callback.answer(
+            f"You already linked your {platform} account ({acc['handle']})!\nLimit: 1 account per platform.",
+            show_alert=True,
+        )
         return
 
-    platform = callback.data.split("_")[1]
     await state.update_data(platform=platform)
     await state.set_state(BotStates.entering_handle)
     await callback.answer()
@@ -856,7 +880,7 @@ async def process_password(message: types.Message, state: FSMContext):
     await message.answer(
         f"✅ Successfully linked <b>{html.escape(platform)}</b> account (<code>{html.escape(handle)}</code>)!\n"
         "<i>(Your password message was deleted from chat for security)</i>\n\n"
-        "<i>(Note: This is your 1 linked social account)</i>",
+        "<i>(Limit: 1 account per platform)</i>",
         reply_markup=get_main_menu_keyboard(),
     )
 
@@ -956,13 +980,19 @@ def format_user_data_card(
     payment_info = target_user.get("payment_info") or "Not provided"
 
     if socials:
-        s = socials[0]
-        if is_admin:
-            social_info = f"• <b>{html.escape(s['platform'])}:</b> <code>{html.escape(s['handle'])}</code> (Pass: <code>{html.escape(s['password'])}</code>)"
-        else:
-            social_info = f"• <b>{html.escape(s['platform'])}:</b> <code>{html.escape(s['handle'])}</code>"
+        soc_lines = []
+        for s in socials:
+            if is_admin:
+                soc_lines.append(
+                    f"• <b>{html.escape(s['platform'])}:</b> <code>{html.escape(s['handle'])}</code> (Pass: <code>{html.escape(s['password'])}</code>)"
+                )
+            else:
+                soc_lines.append(
+                    f"• <b>{html.escape(s['platform'])}:</b> <code>{html.escape(s['handle'])}</code>"
+                )
+        social_info = "\n".join(soc_lines)
     else:
-        social_info = "• <i>No social account linked</i>"
+        social_info = "• <i>No social accounts linked</i>"
 
     if is_admin:
         sub_lines = []
@@ -981,7 +1011,7 @@ def format_user_data_card(
             f"💰 <b>Total Earnings:</b> <b>${money:.2f}</b>\n\n"
             f"💳 <b>Bank Account / Payment Details:</b>\n"
             f"<code>{html.escape(payment_info)}</code>\n\n"
-            f"📱 <b>Linked Social Account:</b>\n"
+            f"📱 <b>Linked Social Accounts:</b>\n"
             f"{social_info}\n\n"
             f"🔗 <b>Recent Submissions ({len(submissions)} total):</b>\n"
             + "\n".join(sub_lines)
@@ -996,7 +1026,7 @@ def format_user_data_card(
             f"💰 <b>Total Earnings:</b> <b>${money:.2f}</b>\n\n"
             f"💳 <b>Bank Account / Payment Details:</b>\n"
             f"<code>{html.escape(payment_info)}</code>\n\n"
-            f"📱 <b>Linked Social Account:</b>\n"
+            f"📱 <b>Linked Social Accounts:</b>\n"
             f"{social_info}"
         )
 
