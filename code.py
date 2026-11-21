@@ -336,6 +336,37 @@ class Database:
                 await db.commit()
                 return {"chat_id": row[0], "telegram_username": row[1], "link": row[2]}
 
+    async def get_leaderboard(self, limit: int = 5) -> list[dict]:
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT telegram_username, views, money
+                    FROM users
+                    ORDER BY views DESC, money DESC
+                    LIMIT $1
+                    """,
+                    limit,
+                )
+                return [dict(r) for r in rows]
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute(
+                    """
+                    SELECT telegram_username, views, money
+                    FROM users
+                    ORDER BY views DESC, money DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ) as cursor:
+                    rows = await cursor.fetchall()
+                    return [
+                        {"telegram_username": r[0], "views": r[1], "money": r[2]}
+                        for r in rows
+                    ]
+
 db = Database(DATABASE_URL)
 
 # --- STATES ---
@@ -360,6 +391,7 @@ def get_main_menu_keyboard():
                 InlineKeyboardButton(text="💳 Payment", callback_data="menu_payment"),
                 InlineKeyboardButton(text="🔗 Submission Links", callback_data="menu_submissions"),
             ],
+            [InlineKeyboardButton(text="🏆 Leaderboard", callback_data="menu_leaderboard")],
         ]
     )
 
@@ -545,6 +577,36 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
                 text,
                 reply_markup=keyboard,
                 disable_web_page_preview=True,
+            )
+        elif data == "menu_leaderboard":
+            top_clippers = await db.get_leaderboard(limit=5)
+            if not top_clippers:
+                text = (
+                    "🏆 <b>Clippers Campaign Leaderboard</b>\n\n"
+                    "No clippers have registered views or earnings yet.\n"
+                    "Start submitting clips to take the #1 spot!"
+                )
+            else:
+                medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+                lines = [
+                    "🏆 <b>Clippers Campaign Leaderboard</b>",
+                    "<i>Top 5 clippers leading the campaign:</i>\n",
+                ]
+                for idx, clipper in enumerate(top_clippers):
+                    medal = medals[idx] if idx < len(medals) else f"<b>{idx+1}.</b>"
+                    username = clipper["telegram_username"] or "Anonymous Clipper"
+                    views = clipper["views"]
+                    money = clipper["money"]
+                    lines.append(
+                        f"{medal} <b>{html.escape(username)}</b>\n"
+                        f"   👁 Views: <b>{views:,}</b> | 💰 Earnings: <b>${money:.2f}</b>\n"
+                    )
+                lines.append("🔥 <i>Keep clipping and posting to climb the ranks!</i>")
+                text = "\n".join(lines)
+
+            await callback.message.edit_text(
+                text,
+                reply_markup=get_back_keyboard(),
             )
         elif data == "sub_new":
             await state.set_state(BotStates.entering_submission_link)
