@@ -1,61 +1,156 @@
 import React from 'react';
-import { Scissors, RefreshCw, LogOut, Send, Coins } from 'lucide-react';
 
 export default function Navbar({ onRefresh, onLogout, onOpenBroadcast, onOpenRates, isRefreshing }) {
   return (
-    <header className="glass-nav sticky top-0 z-40 px-4 sm:px-6 py-3.5 border-b border-neutral-200">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 via-brand-500 to-sky-400 flex items-center justify-center shadow-md shadow-brand-500/20">
-            <Scissors className="text-white w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold tracking-tight text-neutral-900 flex items-center gap-2">
-                Clipper Admin <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-200">Hub</span>
-              </h1>
-            </div>
-            <p className="text-xs text-neutral-500">Telegram Clipper Campaign Management &amp; Payouts</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 sm:gap-3">
-
-          <button
-            onClick={onOpenRates}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold border border-amber-200 transition shadow-xs"
-            title="Configure platform payout rates per 1,000 views"
+    <header className="flex w-full items-center gap-4 border-b border-solid border-neutral-border bg-default-background px-4 sm:px-12 lg:px-20 py-3 sticky top-0 z-40">
+      <div className="flex h-9 w-9 flex-none items-center justify-center rounded-md bg-brand-primary shadow-xs">
+        <svg
+          className="text-[18px] text-white"
+          width="1.1em"
+          height="1.1em"
+          viewBox="0 0 24 24"
+        >
+          <ellipse
+            cx="6"
+            cy="6"
+            rx="3"
+            ry="3"
+            fill="none"
+            stroke="rgb(255 255 255)"
+            strokeWidth="2"
+            strokeLinecap="butt"
+            strokeLinejoin="miter"
+          />
+          <ellipse
+            cx="6"
+            cy="18"
+            rx="3"
+            ry="3"
+            fill="none"
+            stroke="rgb(255 255 255)"
+            strokeWidth="2"
+            strokeLinecap="butt"
+            strokeLinejoin="miter"
+          />
+          <path
+            d="M20 4 8.1 15.9m6.4-1.4L20 20M8.1 8.1 12 12"
+            fill="none"
+            stroke="rgb(255 255 255)"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="miter"
+          />
+        </svg>
+      </div>
+      <div className="flex flex-col items-start grow">
+        <span className="w-full text-heading-3 font-heading-3 text-default-font">
+          Clipper Admin
+        </span>
+        <span className="w-full text-caption font-caption text-subtext-color">
+          Telegram campaign management &amp; payouts
+        </span>
+      </div>
+      <div className="flex items-center gap-1 sm:gap-1.5">
+        <button
+          onClick={onOpenRates}
+          className="flex items-center gap-1.5 rounded-sm px-3 py-1.5 hover:bg-neutral-100 transition cursor-pointer text-neutral-600 hover:text-neutral-900"
+          title="Configure platform payout rates"
+        >
+          <svg
+            className="text-[14px]"
+            width="1em"
+            height="1em"
+            viewBox="0 0 24 24"
           >
-            <Coins className="w-3.5 h-3.5 text-amber-600" />
-            <span className="hidden sm:inline">Pricing Rates</span>
-          </button>
+            <path
+              d="M12 2v20m5-17H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"
+              fill="none"
+              stroke="rgb(75 85 99)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="miter"
+            />
+          </svg>
+          <span className="text-body font-body text-neutral-600 hidden sm:inline">
+            Pricing rates
+          </span>
+        </button>
 
-          <button
-            onClick={onOpenBroadcast}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold border border-brand-200 transition shadow-sm"
-            title="Broadcast message to all clippers via Telegram bot"
+        <button
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          className="flex items-center gap-1.5 rounded-sm px-3 py-1.5 hover:bg-neutral-100 transition cursor-pointer text-neutral-600 hover:text-neutral-900"
+          title="Refresh dashboard data"
+        >
+          <svg
+            className={`text-[14px] ${isRefreshing ? 'animate-spin' : ''}`}
+            width="1em"
+            height="1em"
+            viewBox="0 0 24 24"
           >
-            <Send className="w-3.5 h-3.5 text-brand-600" />
-            <span className="hidden sm:inline">Broadcast DM</span>
-          </button>
+            <path
+              d="M21 12a9 9 0 1 1-3-6.7L21 8m0-5v5h-5"
+              fill="none"
+              stroke="rgb(75 85 99)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span className="text-body font-body text-neutral-600 hidden sm:inline">
+            Refresh
+          </span>
+        </button>
 
-          <button
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-neutral-100 text-neutral-700 text-xs font-medium border border-neutral-200 transition"
+        <button
+          onClick={onLogout}
+          className="flex items-center gap-1.5 rounded-sm px-3 py-1.5 hover:bg-neutral-100 transition cursor-pointer text-neutral-600 hover:text-neutral-900"
+          title="Log out of session"
+        >
+          <svg
+            className="text-[14px]"
+            width="1em"
+            height="1em"
+            viewBox="0 0 24 24"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-neutral-500 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
+            <path
+              d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9"
+              fill="none"
+              stroke="rgb(75 85 99)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span className="text-body font-body text-neutral-600 hidden sm:inline">
+            Log out
+          </span>
+        </button>
 
-          <button
-            onClick={onLogout}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-error-50 hover:bg-error-100 text-error-700 text-xs font-medium border border-error-200 transition"
+        <button
+          onClick={onOpenBroadcast}
+          className="flex items-center gap-1.5 rounded-sm bg-brand-primary px-3 py-1.5 ml-1 sm:ml-2 hover:bg-brand-600 transition cursor-pointer text-white shadow-xs"
+          title="Broadcast message to all clippers via Telegram bot"
+        >
+          <svg
+            className="text-[14px]"
+            width="1em"
+            height="1em"
+            viewBox="0 0 24 24"
           >
-            <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Logout</span>
-          </button>
-        </div>
+            <path
+              d="M22 2 11 13M22 2l-7 20-4-9-9-4z"
+              fill="none"
+              stroke="rgb(255 255 255)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span className="text-body-bold font-body-bold text-white">
+            Broadcast DM
+          </span>
+        </button>
       </div>
     </header>
   );

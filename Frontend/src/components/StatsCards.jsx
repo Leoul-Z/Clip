@@ -1,74 +1,106 @@
 import React from 'react';
-import { Users, Video, Clock, Eye, DollarSign, Share2 } from 'lucide-react';
 
 export default function StatsCards({ stats, onPendingClick }) {
-  const formatNum = (n) => Number(n || 0).toLocaleString();
-  const formatCurr = (n) => `${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`;
+  const pendingCount = stats.pending_submissions || 0;
 
   return (
-    <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-      {/* Total Clippers */}
-      <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm hover:border-neutral-300 transition">
-        <div className="flex items-center justify-between text-neutral-500 mb-2">
-          <span className="text-xs font-semibold uppercase tracking-wider">Clippers</span>
-          <Users className="text-brand-500 w-4 h-4" />
-        </div>
-        <div className="text-2xl font-bold text-neutral-900">{formatNum(stats.total_users)}</div>
-        <div className="text-[11px] text-neutral-500 mt-1">Registered users</div>
+    <div className="w-full items-start rounded-lg border border-solid border-neutral-border bg-default-background grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 overflow-hidden shadow-xs">
+      {/* Clippers */}
+      <div className="flex flex-col items-start gap-1 self-stretch border-r border-b lg:border-b-0 border-solid border-neutral-border px-5 py-4">
+        <span className="w-full text-overline font-overline text-subtext-color uppercase">
+          Clippers
+        </span>
+        <span className="w-full text-heading-1 font-heading-1 text-default-font">
+          {stats.total_users || 0}
+        </span>
+        <span className="w-full text-caption font-caption text-subtext-color">
+          Registered
+        </span>
       </div>
 
-      {/* Total Submissions */}
-      <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm hover:border-neutral-300 transition">
-        <div className="flex items-center justify-between text-neutral-500 mb-2">
-          <span className="text-xs font-semibold uppercase tracking-wider">Submissions</span>
-          <Video className="text-brand-500 w-4 h-4" />
-        </div>
-        <div className="text-2xl font-bold text-neutral-900">{formatNum(stats.total_submissions)}</div>
-        <div className="text-[11px] text-neutral-500 mt-1">Total video links</div>
+      {/* Accounts */}
+      <div className="flex flex-col items-start gap-1 self-stretch border-r border-b lg:border-b-0 border-solid border-neutral-border px-5 py-4">
+        <span className="w-full text-overline font-overline text-subtext-color uppercase">
+          Accounts
+        </span>
+        <span className="w-full text-heading-1 font-heading-1 text-default-font">
+          {stats.total_social_accounts || 0}
+        </span>
+        <span className="w-full text-caption font-caption text-subtext-color">
+          Linked socials
+        </span>
       </div>
 
-      {/* Pending Review (Warning: #F59E0B) */}
+      {/* Submissions */}
+      <div className="flex flex-col items-start gap-1 self-stretch border-r sm:border-r-0 lg:border-r border-b lg:border-b-0 border-solid border-neutral-border px-5 py-4">
+        <span className="w-full text-overline font-overline text-subtext-color uppercase">
+          Submissions
+        </span>
+        <span className="w-full text-heading-1 font-heading-1 text-default-font">
+          {stats.total_submissions || 0}
+        </span>
+        <span className="w-full text-caption font-caption text-subtext-color">
+          Video links
+        </span>
+      </div>
+
+      {/* Pending */}
       <div
         onClick={onPendingClick}
-        className="bg-warning-50 p-4 rounded-xl border border-warning-200 shadow-sm hover:border-warning-300 transition cursor-pointer"
+        className="flex flex-col items-start gap-1 self-stretch border-r border-solid border-neutral-border px-5 py-4 cursor-pointer hover:bg-neutral-50 transition"
+        title="View pending submissions"
       >
-        <div className="flex items-center justify-between text-warning-700 mb-2">
-          <span className="text-xs font-semibold uppercase tracking-wider">Pending</span>
-          <Clock className="text-warning-600 w-4 h-4" />
+        <span className="w-full text-overline font-overline text-subtext-color uppercase">
+          Pending
+        </span>
+        <span className="w-full text-heading-1 font-heading-1 text-default-font">
+          {pendingCount}
+        </span>
+        <div className="flex w-full items-center gap-1.5">
+          <div
+            className={`flex h-1.5 w-1.5 flex-none items-start rounded-full ${
+              pendingCount > 0 ? 'bg-amber-500 animate-pulse' : 'bg-success-600'
+            }`}
+          />
+          <span
+            className={`text-caption font-caption ${
+              pendingCount > 0 ? 'text-amber-800 font-semibold' : 'text-success-800'
+            }`}
+          >
+            {pendingCount > 0 ? `${pendingCount} need review` : 'All caught up'}
+          </span>
         </div>
-        <div className="text-2xl font-bold text-warning-700">{formatNum(stats.pending_submissions)}</div>
-        <div className="text-[11px] text-warning-600 font-medium mt-1">Awaiting review ⚠️</div>
       </div>
 
-      {/* Total Approved Views */}
-      <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm hover:border-neutral-300 transition">
-        <div className="flex items-center justify-between text-neutral-500 mb-2">
-          <span className="text-xs font-semibold uppercase tracking-wider">Total Views</span>
-          <Eye className="text-brand-500 w-4 h-4" />
-        </div>
-        <div className="text-2xl font-bold text-brand-600">{formatNum(stats.total_views)}</div>
-        <div className="text-[11px] text-neutral-500 mt-1">Approved views</div>
+      {/* Approved Views */}
+      <div className="flex flex-col items-start gap-1 self-stretch border-r border-solid border-neutral-border px-5 py-4">
+        <span className="w-full text-overline font-overline text-subtext-color uppercase">
+          Approved views
+        </span>
+        <span className="w-full text-heading-1 font-heading-1 text-default-font">
+          {Number(stats.total_views || 0).toLocaleString()}
+        </span>
+        <span className="w-full text-caption font-caption text-subtext-color">
+          Across all platforms
+        </span>
       </div>
 
-      {/* Total Paid (Paid: #6366F1) */}
-      <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm hover:border-neutral-300 transition">
-        <div className="flex items-center justify-between text-neutral-500 mb-2">
-          <span className="text-xs font-semibold uppercase tracking-wider">Total Paid</span>
-          <DollarSign className="text-paid-500 w-4 h-4" />
-        </div>
-        <div className="text-2xl font-bold text-paid-600">{formatCurr(stats.total_payments)}</div>
-        <div className="text-[11px] text-neutral-500 mt-1">Approved payouts</div>
+      {/* Total Paid */}
+      <div className="flex flex-col items-start gap-1 self-stretch bg-brand-50 px-5 py-4">
+        <span className="w-full text-overline font-overline text-brand-800 uppercase font-semibold">
+          Total paid
+        </span>
+        <span className="w-full text-heading-1 font-heading-1 text-brand-800">
+          {Number(stats.total_payments || 0).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}{' '}
+          ETB
+        </span>
+        <span className="w-full text-caption font-caption text-brand-700">
+          Approved payouts
+        </span>
       </div>
-
-      {/* Linked Social Accounts */}
-      <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm hover:border-neutral-300 transition">
-        <div className="flex items-center justify-between text-neutral-500 mb-2">
-          <span className="text-xs font-semibold uppercase tracking-wider">Accounts</span>
-          <Share2 className="text-brand-500 w-4 h-4" />
-        </div>
-        <div className="text-2xl font-bold text-neutral-900">{formatNum(stats.total_social_accounts)}</div>
-        <div className="text-[11px] text-neutral-500 mt-1">Linked socials</div>
-      </div>
-    </section>
+    </div>
   );
 }

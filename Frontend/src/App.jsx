@@ -10,7 +10,6 @@ import SendMessageModal from './components/SendMessageModal';
 import LoginModal from './components/LoginModal';
 import Toast from './components/Toast';
 import { AdminAPI } from './api';
-import { Users, Video } from 'lucide-react';
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('clipper_admin_token') || '');
@@ -247,7 +246,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-neutral-50 text-neutral-900">
+    <div className="flex min-h-screen w-full flex-col items-start bg-page-background text-default-font">
       <Navbar
         onRefresh={loadData}
         onLogout={handleLogout}
@@ -256,7 +255,7 @@ export default function App() {
         isRefreshing={isRefreshing}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <main className="flex w-full flex-col items-start gap-5 px-4 sm:px-12 lg:px-20 py-6">
         {/* KPI Metrics Banner */}
         <StatsCards
           stats={stats}
@@ -266,64 +265,104 @@ export default function App() {
           }}
         />
 
-        {/* Tab Switcher & Auto-refresh status */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-neutral-200 pb-3">
-          <div className="flex items-center gap-2">
-            <button
+        {/* Tab Bar matching ClipperAdminHub mockup */}
+        <div className="flex w-full items-center justify-between border-b border-solid border-neutral-border pb-px">
+          <div className="flex items-center gap-6">
+            <div
               onClick={() => setActiveTab('users')}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-2 ${
+              className={`flex items-center gap-2 pb-3 -mb-px cursor-pointer transition ${
                 activeTab === 'users'
-                  ? 'bg-brand-500 hover:bg-brand-600 text-white shadow-md shadow-brand-500/20'
-                  : 'bg-white hover:bg-neutral-100 text-neutral-700 border border-neutral-200'
+                  ? 'border-b-2 border-solid border-brand-primary'
+                  : 'hover:text-default-font'
               }`}
             >
-              <Users className="w-4 h-4" />
-              <span>Clippers &amp; Accounts</span>
-              <span className={`px-2 py-0.5 rounded-full text-xs ${activeTab === 'users' ? 'bg-white/20 text-white' : 'bg-neutral-100 text-neutral-600'}`}>
-                {users.length}
+              <span
+                className={
+                  activeTab === 'users'
+                    ? 'text-body-bold font-body-bold text-brand-primary'
+                    : 'text-body font-body text-neutral-500'
+                }
+              >
+                Clippers &amp; accounts
               </span>
-            </button>
+              <div
+                className={`flex items-center rounded-full px-2 py-0.5 ${
+                  activeTab === 'users' ? 'bg-brand-50' : 'bg-neutral-100'
+                }`}
+              >
+                <span
+                  className={
+                    activeTab === 'users'
+                      ? 'text-caption-bold font-caption-bold text-brand-primary'
+                      : 'text-caption font-caption text-neutral-600'
+                  }
+                >
+                  {users.length}
+                </span>
+              </div>
+            </div>
 
-            <button
-              onClick={() => {
-                setActiveTab('submissions');
-              }}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-2 ${
+            <div
+              onClick={() => setActiveTab('submissions')}
+              className={`flex items-center gap-2 pb-3 -mb-px cursor-pointer transition ${
                 activeTab === 'submissions'
-                  ? 'bg-brand-500 hover:bg-brand-600 text-white shadow-md shadow-brand-500/20'
-                  : 'bg-white hover:bg-neutral-100 text-neutral-700 border border-neutral-200'
+                  ? 'border-b-2 border-solid border-brand-primary'
+                  : 'hover:text-default-font'
               }`}
             >
-              <Video className="w-4 h-4" />
-              <span>Submissions Review</span>
-              <span className={`px-2 py-0.5 rounded-full text-xs ${activeTab === 'submissions' ? 'bg-white/20 text-white' : 'bg-neutral-100 text-neutral-600'}`}>
-                {submissions.length}
+              <span
+                className={
+                  activeTab === 'submissions'
+                    ? 'text-body-bold font-body-bold text-brand-primary'
+                    : 'text-body font-body text-neutral-500'
+                }
+              >
+                Submissions review
               </span>
+              <div
+                className={`flex items-center rounded-full px-2 py-0.5 ${
+                  activeTab === 'submissions' ? 'bg-brand-50' : 'bg-neutral-100'
+                }`}
+              >
+                <span
+                  className={
+                    activeTab === 'submissions'
+                      ? 'text-caption-bold font-caption-bold text-brand-primary'
+                      : 'text-caption font-caption text-neutral-600'
+                  }
+                >
+                  {submissions.length}
+                </span>
+              </div>
+              {stats.pending_submissions > 0 && (
+                <div
+                  className="h-1.5 w-1.5 rounded-full bg-amber-500"
+                  title={`${stats.pending_submissions} pending review`}
+                />
+              )}
               {selectedUserForSubmissions && (
-                <span className="px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 text-[10px] font-bold border border-brand-200">
+                <span className="px-2 py-0.5 rounded-full bg-brand-50 text-brand-primary text-caption font-caption border border-brand-200">
                   Filtered: {selectedUserForSubmissions.telegram_username || selectedUserForSubmissions.chat_id}
                 </span>
               )}
-              {stats.pending_submissions > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full bg-warning-100 text-warning-800 text-[10px] font-bold border border-warning-500/30">
-                  {stats.pending_submissions}
-                </span>
-              )}
-            </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-neutral-500 self-end sm:self-auto">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="w-3.5 h-3.5 rounded bg-white border-neutral-300 text-brand-500 focus:ring-brand-500"
-              />
-              <span>Auto-refresh (30s)</span>
-            </label>
-            <span className="text-neutral-300">•</span>
-            <span>Updated {lastUpdated}</span>
+          <div className="flex items-center gap-2 pb-3">
+            <div
+              className={`h-2 w-2 rounded-full ${
+                autoRefresh ? 'bg-green-500 animate-pulse' : 'bg-neutral-300'
+              }`}
+            />
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className="text-caption font-caption text-subtext-color hover:text-default-font cursor-pointer flex items-center gap-1.5"
+              title="Click to toggle auto-refresh"
+            >
+              <span>{autoRefresh ? 'Auto-refresh every 30s' : 'Auto-refresh paused'}</span>
+              <span>·</span>
+              <span>updated {lastUpdated}</span>
+            </button>
           </div>
         </div>
 

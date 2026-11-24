@@ -8,6 +8,12 @@ export default {
   theme: {
     extend: {
       colors: {
+        'page-background': '#F8F9FA',
+        'default-background': '#FFFFFF',
+        'neutral-border': '#E6E8EC',
+        'default-font': '#111827',
+        'subtext-color': '#6B7280',
+        'brand-primary': '#229ED9',
         brand: {
           50: '#E8F5FB',
           100: '#D1ECF7',

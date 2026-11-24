@@ -56,3 +56,56 @@ code, .font-mono {
   font-weight: 600;
   border-color: #75C5E7;
 }
+
+/* Typography tokens matching exact Figma/Design spec */
+.text-heading-1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 2rem;
+  letter-spacing: -0.02em;
+}
+
+.text-heading-3 {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.5rem;
+}
+
+.text-body {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.text-body-bold {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+}
+
+.text-caption {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.text-caption-bold {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1rem;
+}
+
+.text-overline {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.text-monospace-body {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8125rem;
+}
+
+.text-monospace-caption {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6875rem;
+}
