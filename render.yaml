@@ -1,26 +1,11 @@
 services:
-  # 1. Telegram Bot Worker & Keepalive Web Server
   - type: web
-    name: ethio-clippers-bot
+    name: ethio-clippers
     runtime: python
+    plan: free
+    branch: main
     buildCommand: pip install -r requirements.txt
-    startCommand: python code.py
-    envVars:
-      - key: BOT_TOKEN
-        sync: false
-      - key: DATABASE_URL
-        sync: false
-      - key: ADMIN_IDS
-        sync: false
-      - key: DISCORD_WEBHOOK_URL
-        sync: false
-
-  # 2. Standalone Admin Dashboard REST Backend (FastAPI)
-  - type: web
-    name: clipper-admin-backend
-    runtime: python
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    startCommand: python run_all.py
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -29,6 +14,6 @@ services:
       - key: ADMIN_PORTAL_PASSWORD
         sync: false
       - key: ADMIN_TOKEN_SECRET
+        generateValue: true
+      - key: ADMIN_IDS
         sync: false
-      - key: CORS_ORIGINS
-        value: "*"

@@ -9,7 +9,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TOKEN")
 ADMIN_PORTAL_PASSWORD = os.getenv("ADMIN_PORTAL_PASSWORD", "admin123")
 ADMIN_TOKEN_SECRET = os.getenv("ADMIN_TOKEN_SECRET", "clipper_portal_secret_key_882")
 PORT = int(os.getenv("PORT", 8080))
