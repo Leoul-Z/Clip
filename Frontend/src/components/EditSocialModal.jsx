@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Key, Trash2, Check, Eye, EyeOff } from 'lucide-react';
+import { X, Key, Trash2, Check, Eye, EyeOff, Lock } from 'lucide-react';
 
 export default function EditSocialModal({ isOpen, account, chatId, onClose, onSave, onDelete }) {
   const [platform, setPlatform] = useState('tiktok');
@@ -63,28 +63,28 @@ export default function EditSocialModal({ isOpen, account, chatId, onClose, onSa
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-neutral-700 mb-1">Platform</label>
-            <select
-              value={platform}
-              onChange={(e) => setPlatform(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm text-neutral-900 focus:outline-none focus:border-brand-500 focus:bg-white"
-            >
-              <option value="tiktok">TikTok</option>
-              <option value="youtube">YouTube</option>
-              <option value="twitter">Twitter / X</option>
-              <option value="instagram">Instagram</option>
-            </select>
+            <input
+              type="text"
+              disabled
+              value={platform.toUpperCase()}
+              className="w-full px-3.5 py-2.5 bg-neutral-100 border border-neutral-200 rounded-xl text-sm text-neutral-500 font-semibold cursor-not-allowed select-none"
+            />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-neutral-700 mb-1">Account Handle</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-neutral-700">Account Handle</label>
+              <span className="text-[11px] text-neutral-400 font-medium flex items-center gap-1">
+                <Lock className="w-3 h-3 text-neutral-400" /> Locked by user
+              </span>
+            </div>
             <input
               type="text"
-              required
+              disabled
               value={handle}
-              onChange={(e) => setHandle(e.target.value)}
-              placeholder="@handle"
-              className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm text-neutral-900 focus:outline-none focus:border-brand-500 focus:bg-white font-mono"
+              className="w-full px-3.5 py-2.5 bg-neutral-100 border border-neutral-200 rounded-xl text-sm text-neutral-500 font-mono cursor-not-allowed select-all"
             />
+            <p className="text-[11px] text-neutral-400 mt-1">Clippers link and manage their own handles via Telegram.</p>
           </div>
 
           <div>

@@ -104,14 +104,10 @@ async def list_users(_: bool = Depends(get_current_admin)):
 
 @app.put("/api/admin/users/{chat_id}")
 async def update_user(chat_id: int, body: UpdateUserRequest, _: bool = Depends(get_current_admin)):
-    success = await backend_db.update_user(
-        chat_id=chat_id,
-        telegram_username=body.telegram_username,
-        payment_details=body.payment_details,
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Admins cannot edit clipper usernames or bank details. Clippers manage their own credentials via Telegram.",
     )
-    if not success:
-        raise HTTPException(status_code=404, detail="User not found")
-    return {"success": True, "message": "User updated successfully"}
 
 @app.delete("/api/admin/users/{chat_id}")
 async def delete_user(chat_id: int, _: bool = Depends(get_current_admin)):
@@ -120,25 +116,21 @@ async def delete_user(chat_id: int, _: bool = Depends(get_current_admin)):
 
 @app.post("/api/admin/users/{chat_id}/socials")
 async def add_social_for_user(chat_id: int, body: CreateSocialRequest, _: bool = Depends(get_current_admin)):
-    acc_id = await backend_db.add_social_account(
-        chat_id=chat_id,
-        platform=body.platform,
-        handle=body.handle,
-        password=body.password,
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Clippers must link their own social accounts via the Telegram bot.",
     )
-    if not acc_id:
-        raise HTTPException(status_code=404, detail="User not found or account creation failed")
-    return {"success": True, "social_account_id": acc_id}
 
 @app.put("/api/admin/socials/{account_id}")
 async def update_social(account_id: int, body: UpdateSocialRequest, _: bool = Depends(get_current_admin)):
+    # Admin cannot edit account handles or platforms - only password
     success = await backend_db.update_social_account(
         account_id=account_id,
-        platform=body.platform,
-        handle=body.handle,
+        platform=None,
+        handle=None,
         password=body.password,
     )
-    return {"success": success, "message": "Social account updated"}
+    return {"success": success, "message": "Social account password updated"}
 
 @app.delete("/api/admin/socials/{account_id}")
 async def delete_social(account_id: int, _: bool = Depends(get_current_admin)):

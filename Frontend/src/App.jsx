@@ -3,7 +3,6 @@ import Navbar from './components/Navbar';
 import StatsCards from './components/StatsCards';
 import UsersManager from './components/UsersManager';
 import SubmissionsManager from './components/SubmissionsManager';
-import EditUserModal from './components/EditUserModal';
 import EditSocialModal from './components/EditSocialModal';
 import EditSubmissionModal from './components/EditSubmissionModal';
 import RatesModal from './components/RatesModal';
@@ -332,9 +331,11 @@ export default function App() {
         {activeTab === 'users' && (
           <UsersManager
             users={users}
-            onEditUser={handleEditUser}
-            onEditSocial={handleEditSocial}
-            onAddSocial={handleAddSocial}
+            onDeleteUser={(user) => {
+              if (window.confirm(`Are you sure you want to delete clipper ${user.telegram_username || user.chat_id}? This will also delete their submissions and linked accounts.`)) {
+                handleDeleteUser(user.chat_id);
+              }
+            }}
             onViewSubmissions={handleViewUserSubmissions}
             onSendMessage={handleOpenUserMessage}
             onCopy={copyToClipboard}
@@ -361,14 +362,6 @@ export default function App() {
         targetUser={messagingTargetUser}
         onClose={() => setIsMessageModalOpen(false)}
         onSend={handleSendMessage}
-      />
-
-      <EditUserModal
-        isOpen={isUserModalOpen}
-        user={editingUser}
-        onClose={() => setIsUserModalOpen(false)}
-        onSave={handleSaveUser}
-        onDelete={handleDeleteUser}
       />
 
       <EditSocialModal
