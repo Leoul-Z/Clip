@@ -25,6 +25,11 @@ class BackendDatabase:
                             rate_per_1000 NUMERIC(10,2) NOT NULL DEFAULT 50.00,
                             updated_at    TIMESTAMP NOT NULL DEFAULT NOW()
                         );
+                        CREATE TABLE IF NOT EXISTS app_settings (
+                            key        VARCHAR(50) PRIMARY KEY,
+                            value      TEXT NOT NULL,
+                            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+                        );
                         INSERT INTO platform_rates (platform, rate_per_1000)
                         VALUES 
                             ('youtube', 60.00),
@@ -44,6 +49,13 @@ class BackendDatabase:
                         platform      TEXT PRIMARY KEY,
                         rate_per_1000 REAL NOT NULL DEFAULT 50.0,
                         updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                await db.execute("""
+                    CREATE TABLE IF NOT EXISTS app_settings (
+                        key        TEXT PRIMARY KEY,
+                        value      TEXT NOT NULL,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     );
                 """)
                 await db.execute("""
@@ -559,5 +571,36 @@ class BackendDatabase:
                     current[plat_clean] = rate_val
                 await db.commit()
                 return current
+
+    # --- APP SETTINGS (ADMIN PASSWORD, ETC.) ---
+    async def get_app_setting(self, key: str, default: str | None = None) -> str | None:
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                val = await conn.fetchval("SELECT value FROM app_settings WHERE key = $1", key)
+                return str(val) if val is not None else default
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute("SELECT value FROM app_settings WHERE key = ?", (key,)) as cur:
+                    row = await cur.fetchone()
+                    return str(row[0]) if row else default
+
+    async def set_app_setting(self, key: str, value: str):
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO app_settings (key, value, updated_at)
+                    VALUES ($1, $2, NOW())
+                    ON CONFLICT (key) DO UPDATE
+                    SET value = EXCLUDED.value, updated_at = NOW()
+                """, key, str(value))
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute("""
+                    INSERT OR REPLACE INTO app_settings (key, value, updated_at)
+                    VALUES (?, ?, CURRENT_TIMESTAMP)
+                """, (key, str(value)))
+                await db.commit()
 
 backend_db = BackendDatabase(DATABASE_URL)

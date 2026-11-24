@@ -133,6 +133,18 @@ export default function App() {
     }
   };
 
+  const handleChangePassword = async (currentPassword, newPassword) => {
+    const res = await AdminAPI.changePassword(currentPassword, newPassword);
+    if (res.success && res.token) {
+      localStorage.setItem('clipper_admin_token', res.token);
+      setToken(res.token);
+      setIsLoginOpen(false);
+      addToast('Master admin password updated and portal unlocked!', 'success');
+      loadData();
+    }
+    return res;
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('clipper_admin_token');
     setToken('');
@@ -394,7 +406,11 @@ export default function App() {
       </main>
 
       {/* MODALS */}
-      <LoginModal isOpen={isLoginOpen} onLogin={handleLogin} />
+      <LoginModal
+        isOpen={isLoginOpen}
+        onLogin={handleLogin}
+        onChangePassword={handleChangePassword}
+      />
 
       <SendMessageModal
         isOpen={isMessageModalOpen}

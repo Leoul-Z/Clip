@@ -36,6 +36,13 @@ export const AdminAPI = {
     const res = await api.post('/api/admin/login', { password });
     return res.data;
   },
+  changePassword: async (currentPassword, newPassword) => {
+    const res = await api.post('/api/admin/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+    return res.data;
+  },
   verifyMe: async () => {
     const res = await api.get('/api/admin/me');
     return res.data;

@@ -11,8 +11,8 @@ from starlette.responses import FileResponse
 from starlette.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from backend.auth import get_admin_token, get_current_admin, verify_admin_password
-from backend.config import CORS_ORIGINS, PORT
+from backend.auth import get_admin_token, get_current_admin, set_active_admin_password, verify_admin_password
+from backend.config import ADMIN_PORTAL_PASSWORD, CORS_ORIGINS, PORT
 from backend.database import backend_db
 from backend.telegram import send_telegram_message
 
@@ -21,6 +21,13 @@ logging.basicConfig(level=logging.INFO)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await backend_db.connect()
+    # Initialize / load persisted admin password
+    saved_pwd = await backend_db.get_app_setting("admin_password")
+    if saved_pwd:
+        set_active_admin_password(saved_pwd)
+    else:
+        await backend_db.set_app_setting("admin_password", ADMIN_PORTAL_PASSWORD)
+        set_active_admin_password(ADMIN_PORTAL_PASSWORD)
     yield
     await backend_db.close()
 
@@ -43,6 +50,10 @@ app.add_middleware(
 # --- REQUEST SCHEMAS ---
 class LoginRequest(BaseModel):
     password: str
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 class UpdateUserRequest(BaseModel):
     telegram_username: Optional[str] = None
@@ -87,6 +98,27 @@ async def admin_login(body: LoginRequest):
             detail="Invalid admin master password",
         )
     return {"success": True, "token": get_admin_token()}
+
+@app.post("/api/admin/change-password")
+async def admin_change_password(body: ChangePasswordRequest):
+    if not verify_admin_password(body.current_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current master password is incorrect",
+        )
+    new_pwd = body.new_password.strip()
+    if len(new_pwd) < 4:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 4 characters long",
+        )
+    await backend_db.set_app_setting("admin_password", new_pwd)
+    set_active_admin_password(new_pwd)
+    return {
+        "success": True,
+        "token": get_admin_token(),
+        "message": "Master password changed successfully",
+    }
 
 # --- PROTECTED ADMIN ROUTES ---
 @app.get("/api/admin/me")
