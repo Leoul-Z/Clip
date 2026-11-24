@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import hashlib
 import html
 import logging
 import os
@@ -15,6 +17,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, TelegramObject
+from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 
 # Load variables from .env
@@ -29,6 +32,27 @@ ADMIN_IDS = [
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "").strip()
 
 logging.basicConfig(level=logging.INFO)
+
+# --- ENCRYPTION HELPERS ---
+def get_fernet() -> Fernet:
+    key = os.getenv("ENCRYPTION_KEY")
+    if not key:
+        raw = hashlib.sha256((TOKEN or "fallback_encryption_secret_key").encode()).digest()
+        key = base64.urlsafe_b64encode(raw).decode()
+    return Fernet(key.encode())
+
+def encrypt_password(plain: str) -> str:
+    if not plain:
+        return ""
+    return get_fernet().encrypt(plain.encode()).decode()
+
+def decrypt_password(cipher: str | None) -> str:
+    if not cipher:
+        return ""
+    try:
+        return get_fernet().decrypt(cipher.encode()).decode()
+    except Exception:
+        return cipher
 
 # --- DISCORD FORWARDING HELPER ---
 async def send_discord_notification(
@@ -72,32 +96,42 @@ class Database:
             async with self.pool.acquire() as conn:
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS users (
-                        chat_id BIGINT PRIMARY KEY,
-                        telegram_username TEXT,
-                        views INTEGER DEFAULT 0,
-                        money DOUBLE PRECISION DEFAULT 0.0,
-                        payment_info TEXT
+                        id                SERIAL PRIMARY KEY,
+                        chat_id           BIGINT UNIQUE NOT NULL,
+                        telegram_username VARCHAR(64),
+                        payment_details   TEXT,
+                        created_at        TIMESTAMP NOT NULL DEFAULT NOW()
                     );
-                    ALTER TABLE users ADD COLUMN IF NOT EXISTS payment_info TEXT;
+
                     CREATE TABLE IF NOT EXISTS social_accounts (
-                        id SERIAL PRIMARY KEY,
-                        chat_id BIGINT,
-                        telegram_username TEXT,
-                        platform TEXT,
-                        handle TEXT,
-                        password TEXT
+                        id                 SERIAL PRIMARY KEY,
+                        user_id            INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        platform           VARCHAR(20) NOT NULL
+                                           CHECK (platform IN ('twitter','tiktok','youtube','instagram')),
+                        handle             VARCHAR(100) NOT NULL,
+                        password_encrypted TEXT,
+                        created_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+                        UNIQUE (platform, handle),
+                        UNIQUE (user_id, platform)
                     );
+
                     CREATE TABLE IF NOT EXISTS submissions (
-                        id SERIAL PRIMARY KEY,
-                        chat_id BIGINT,
-                        telegram_username TEXT,
-                        link TEXT,
-                        payment DOUBLE PRECISION DEFAULT 0.0,
-                        status TEXT DEFAULT 'Under Review',
-                        caption TEXT,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        id                SERIAL PRIMARY KEY,
+                        user_id           INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        social_account_id INT NOT NULL REFERENCES social_accounts(id) ON DELETE CASCADE,
+                        link              TEXT NOT NULL,
+                        caption           TEXT,
+                        views             INT NOT NULL DEFAULT 0,
+                        payment_amount    NUMERIC(10,2) DEFAULT 0.0,
+                        status            VARCHAR(20) NOT NULL DEFAULT 'pending'
+                                          CHECK (status IN ('pending','under_review','approved','rejected')),
+                        submitted_at      TIMESTAMP NOT NULL DEFAULT NOW()
                     );
-                    ALTER TABLE submissions ADD COLUMN IF NOT EXISTS caption TEXT;
+
+                    CREATE INDEX IF NOT EXISTS idx_social_user      ON social_accounts(user_id);
+                    CREATE INDEX IF NOT EXISTS idx_submissions_user ON submissions(user_id);
+                    CREATE INDEX IF NOT EXISTS idx_submissions_acct ON submissions(social_account_id);
+                    CREATE INDEX IF NOT EXISTS idx_submissions_stat ON submissions(status);
                 """)
             logging.info(" Connected to Neon PostgreSQL database.")
         else:
@@ -105,43 +139,42 @@ class Database:
             async with aiosqlite.connect(self.db_path) as db:
                 await db.execute("""
                     CREATE TABLE IF NOT EXISTS users (
-                        chat_id INTEGER PRIMARY KEY,
+                        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                        chat_id           INTEGER UNIQUE NOT NULL,
                         telegram_username TEXT,
-                        views INTEGER DEFAULT 0,
-                        money REAL DEFAULT 0.0,
-                        payment_info TEXT
-                    )
+                        payment_details   TEXT,
+                        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
                 """)
-                try:
-                    await db.execute("ALTER TABLE users ADD COLUMN payment_info TEXT")
-                except Exception:
-                    pass
                 await db.execute("""
                     CREATE TABLE IF NOT EXISTS social_accounts (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        chat_id INTEGER,
-                        telegram_username TEXT,
-                        platform TEXT,
-                        handle TEXT,
-                        password TEXT
-                    )
+                        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        platform           TEXT NOT NULL CHECK (platform IN ('twitter','tiktok','youtube','instagram')),
+                        handle             TEXT NOT NULL,
+                        password_encrypted TEXT,
+                        created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE (platform, handle),
+                        UNIQUE (user_id, platform)
+                    );
                 """)
                 await db.execute("""
                     CREATE TABLE IF NOT EXISTS submissions (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        chat_id INTEGER,
-                        telegram_username TEXT,
-                        link TEXT,
-                        payment REAL DEFAULT 0.0,
-                        status TEXT DEFAULT 'Under Review',
-                        caption TEXT,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
+                        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        social_account_id INTEGER NOT NULL REFERENCES social_accounts(id) ON DELETE CASCADE,
+                        link              TEXT NOT NULL,
+                        caption           TEXT,
+                        views             INTEGER DEFAULT 0,
+                        payment_amount    REAL DEFAULT 0.0,
+                        status            TEXT DEFAULT 'pending' CHECK (status IN ('pending','under_review','approved','rejected')),
+                        submitted_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
                 """)
-                try:
-                    await db.execute("ALTER TABLE submissions ADD COLUMN caption TEXT")
-                except Exception:
-                    pass
+                await db.execute("CREATE INDEX IF NOT EXISTS idx_social_user ON social_accounts(user_id);")
+                await db.execute("CREATE INDEX IF NOT EXISTS idx_submissions_user ON submissions(user_id);")
+                await db.execute("CREATE INDEX IF NOT EXISTS idx_submissions_acct ON submissions(social_account_id);")
+                await db.execute("CREATE INDEX IF NOT EXISTS idx_submissions_stat ON submissions(status);")
                 await db.commit()
             logging.info(" Connected to local SQLite database (bot_database.db).")
 
@@ -153,7 +186,20 @@ class Database:
         if self.is_postgres:
             async with self.pool.acquire() as conn:
                 row = await conn.fetchrow(
-                    "SELECT telegram_username, views, money, payment_info FROM users WHERE chat_id = $1",
+                    """
+                    SELECT 
+                        u.id,
+                        u.chat_id,
+                        u.telegram_username,
+                        u.payment_details,
+                        u.payment_details AS payment_info,
+                        COALESCE(SUM(s.views), 0)::INTEGER AS views,
+                        COALESCE(SUM(s.payment_amount), 0.0)::FLOAT AS money
+                    FROM users u
+                    LEFT JOIN submissions s ON s.user_id = u.id AND s.status = 'approved'
+                    WHERE u.chat_id = $1
+                    GROUP BY u.id, u.chat_id, u.telegram_username, u.payment_details
+                    """,
                     chat_id,
                 )
                 return dict(row) if row else None
@@ -161,33 +207,48 @@ class Database:
             import aiosqlite
             async with aiosqlite.connect(self.db_path) as db:
                 async with db.execute(
-                    "SELECT telegram_username, views, money, payment_info FROM users WHERE chat_id = ?",
+                    """
+                    SELECT 
+                        u.id,
+                        u.chat_id,
+                        u.telegram_username,
+                        u.payment_details,
+                        COALESCE(SUM(s.views), 0) AS views,
+                        COALESCE(SUM(s.payment_amount), 0.0) AS money
+                    FROM users u
+                    LEFT JOIN submissions s ON s.user_id = u.id AND s.status = 'approved'
+                    WHERE u.chat_id = ?
+                    GROUP BY u.id, u.chat_id, u.telegram_username, u.payment_details
+                    """,
                     (chat_id,),
                 ) as cursor:
                     row = await cursor.fetchone()
                     if row:
                         return {
-                            "telegram_username": row[0],
-                            "views": row[1],
-                            "money": row[2],
+                            "id": row[0],
+                            "chat_id": row[1],
+                            "telegram_username": row[2],
+                            "payment_details": row[3],
                             "payment_info": row[3],
+                            "views": row[4],
+                            "money": row[5],
                         }
                     return None
 
-    async def update_payment_info(self, chat_id: int, payment_info: str):
+    async def update_payment_info(self, chat_id: int, payment_details: str):
         if self.is_postgres:
             async with self.pool.acquire() as conn:
                 await conn.execute(
-                    "UPDATE users SET payment_info = $1 WHERE chat_id = $2",
-                    payment_info,
+                    "UPDATE users SET payment_details = $1 WHERE chat_id = $2",
+                    payment_details,
                     chat_id,
                 )
         else:
             import aiosqlite
             async with aiosqlite.connect(self.db_path) as db:
                 await db.execute(
-                    "UPDATE users SET payment_info = ? WHERE chat_id = ?",
-                    (payment_info, chat_id),
+                    "UPDATE users SET payment_details = ? WHERE chat_id = ?",
+                    (payment_details, chat_id),
                 )
                 await db.commit()
 
@@ -200,9 +261,18 @@ class Database:
             async with self.pool.acquire() as conn:
                 row = await conn.fetchrow(
                     """
-                    SELECT chat_id, telegram_username, views, money, payment_info
-                    FROM users
-                    WHERE LOWER(telegram_username) = LOWER($1)
+                    SELECT 
+                        u.id,
+                        u.chat_id,
+                        u.telegram_username,
+                        u.payment_details,
+                        u.payment_details AS payment_info,
+                        COALESCE(SUM(s.views), 0)::INTEGER AS views,
+                        COALESCE(SUM(s.payment_amount), 0.0)::FLOAT AS money
+                    FROM users u
+                    LEFT JOIN submissions s ON s.user_id = u.id AND s.status = 'approved'
+                    WHERE LOWER(u.telegram_username) = LOWER($1)
+                    GROUP BY u.id, u.chat_id, u.telegram_username, u.payment_details
                     """,
                     clean_user,
                 )
@@ -212,20 +282,30 @@ class Database:
             async with aiosqlite.connect(self.db_path) as db:
                 async with db.execute(
                     """
-                    SELECT chat_id, telegram_username, views, money, payment_info
-                    FROM users
-                    WHERE LOWER(telegram_username) = LOWER(?)
+                    SELECT 
+                        u.id,
+                        u.chat_id,
+                        u.telegram_username,
+                        u.payment_details,
+                        COALESCE(SUM(s.views), 0) AS views,
+                        COALESCE(SUM(s.payment_amount), 0.0) AS money
+                    FROM users u
+                    LEFT JOIN submissions s ON s.user_id = u.id AND s.status = 'approved'
+                    WHERE LOWER(u.telegram_username) = LOWER(?)
+                    GROUP BY u.id, u.chat_id, u.telegram_username, u.payment_details
                     """,
                     (clean_user,),
                 ) as cursor:
                     row = await cursor.fetchone()
                     if row:
                         return {
-                            "chat_id": row[0],
-                            "telegram_username": row[1],
-                            "views": row[2],
-                            "money": row[3],
-                            "payment_info": row[4],
+                            "id": row[0],
+                            "chat_id": row[1],
+                            "telegram_username": row[2],
+                            "payment_details": row[3],
+                            "payment_info": row[3],
+                            "views": row[4],
+                            "money": row[5],
                         }
                     return None
 
@@ -233,36 +313,65 @@ class Database:
         if self.is_postgres:
             async with self.pool.acquire() as conn:
                 rows = await conn.fetch(
-                    "SELECT platform, handle, password FROM social_accounts WHERE chat_id = $1 ORDER BY id ASC",
+                    """
+                    SELECT sa.id, sa.platform, sa.handle, sa.password_encrypted
+                    FROM social_accounts sa
+                    JOIN users u ON sa.user_id = u.id
+                    WHERE u.chat_id = $1
+                    ORDER BY sa.id ASC
+                    """,
                     chat_id,
                 )
-                return [dict(r) for r in rows]
+                res = []
+                for r in rows:
+                    res.append({
+                        "id": r["id"],
+                        "platform": r["platform"],
+                        "handle": r["handle"],
+                        "password": decrypt_password(r["password_encrypted"]),
+                        "password_encrypted": r["password_encrypted"],
+                    })
+                return res
         else:
             import aiosqlite
             async with aiosqlite.connect(self.db_path) as db:
                 async with db.execute(
-                    "SELECT platform, handle, password FROM social_accounts WHERE chat_id = ? ORDER BY id ASC",
+                    """
+                    SELECT sa.id, sa.platform, sa.handle, sa.password_encrypted
+                    FROM social_accounts sa
+                    JOIN users u ON sa.user_id = u.id
+                    WHERE u.chat_id = ?
+                    ORDER BY sa.id ASC
+                    """,
                     (chat_id,),
                 ) as cursor:
                     rows = await cursor.fetchall()
-                    return [
-                        {"platform": r[0], "handle": r[1], "password": r[2]}
-                        for r in rows
-                    ]
+                    res = []
+                    for r in rows:
+                        res.append({
+                            "id": r[0],
+                            "platform": r[1],
+                            "handle": r[2],
+                            "password": decrypt_password(r[3]),
+                            "password_encrypted": r[3],
+                        })
+                    return res
 
-    async def upsert_user(self, chat_id: int, telegram_username: str):
+    async def upsert_user(self, chat_id: int, telegram_username: str) -> int:
         if self.is_postgres:
             async with self.pool.acquire() as conn:
-                await conn.execute(
+                row = await conn.fetchrow(
                     """
                     INSERT INTO users (chat_id, telegram_username)
                     VALUES ($1, $2)
                     ON CONFLICT (chat_id) DO UPDATE SET
                         telegram_username = COALESCE(users.telegram_username, EXCLUDED.telegram_username)
+                    RETURNING id
                     """,
                     chat_id,
                     telegram_username,
                 )
+                return row["id"]
         else:
             import aiosqlite
             async with aiosqlite.connect(self.db_path) as db:
@@ -276,114 +385,189 @@ class Database:
                     (chat_id, telegram_username),
                 )
                 await db.commit()
+                async with db.execute("SELECT id FROM users WHERE chat_id = ?", (chat_id,)) as cur:
+                    r = await cur.fetchone()
+                    return r[0]
 
     async def update_user_stats(self, target_username: str, views: int, money: float) -> bool:
-        if self.is_postgres:
-            async with self.pool.acquire() as conn:
-                status = await conn.execute(
-                    "UPDATE users SET views = $1, money = $2 WHERE telegram_username = $3",
-                    views,
-                    money,
-                    target_username,
-                )
-                return status != "UPDATE 0"
-        else:
-            import aiosqlite
-            async with aiosqlite.connect(self.db_path) as db:
-                cursor = await db.execute(
-                    "UPDATE users SET views = ?, money = ? WHERE telegram_username = ?",
-                    (views, money, target_username),
-                )
-                await db.commit()
-                return cursor.rowcount > 0
+        user = await self.get_user_by_username(target_username)
+        if not user:
+            return False
+        user_id = user["id"]
 
-    async def add_social_account(
-        self, chat_id: int, telegram_username: str, platform: str, handle: str, password: str
-    ):
         if self.is_postgres:
             async with self.pool.acquire() as conn:
-                await conn.execute(
-                    "DELETE FROM social_accounts WHERE chat_id = $1 AND LOWER(platform) = LOWER($2)",
-                    chat_id,
-                    platform,
+                sub = await conn.fetchrow(
+                    "SELECT id FROM submissions WHERE user_id = $1 ORDER BY id DESC LIMIT 1",
+                    user_id,
                 )
-                await conn.execute(
-                    """
-                    INSERT INTO social_accounts (chat_id, telegram_username, platform, handle, password)
-                    VALUES ($1, $2, $3, $4, $5)
-                    """,
-                    chat_id,
-                    telegram_username,
-                    platform,
-                    handle,
-                    password,
-                )
-        else:
-            import aiosqlite
-            async with aiosqlite.connect(self.db_path) as db:
-                await db.execute(
-                    "DELETE FROM social_accounts WHERE chat_id = ? AND LOWER(platform) = LOWER(?)",
-                    (chat_id, platform),
-                )
-                await db.execute(
-                    """
-                    INSERT INTO social_accounts (chat_id, telegram_username, platform, handle, password)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (chat_id, telegram_username, platform, handle, password),
-                )
-                await db.commit()
-
-    async def get_user_social_accounts(self, chat_id: int) -> dict:
-        if self.is_postgres:
-            async with self.pool.acquire() as conn:
-                rows = await conn.fetch(
-                    "SELECT platform, handle FROM social_accounts WHERE chat_id = $1 ORDER BY id ASC",
-                    chat_id,
-                )
-                return {row["platform"]: row["handle"] for row in rows}
+                if sub:
+                    await conn.execute(
+                        "UPDATE submissions SET views = $1, payment_amount = $2, status = 'approved' WHERE id = $3",
+                        views, money, sub["id"],
+                    )
+                    return True
+                else:
+                    sa = await conn.fetchrow(
+                        "SELECT id FROM social_accounts WHERE user_id = $1 LIMIT 1", user_id
+                    )
+                    sa_id = sa["id"] if sa else None
+                    if not sa_id:
+                        sa_id = await conn.fetchval(
+                            "INSERT INTO social_accounts (user_id, platform, handle, password_encrypted) VALUES ($1, 'tiktok', $2, '') RETURNING id",
+                            user_id, target_username,
+                        )
+                    await conn.execute(
+                        """
+                        INSERT INTO submissions (user_id, social_account_id, link, caption, views, payment_amount, status)
+                        VALUES ($1, $2, 'https://t.me/' || SUBSTRING($3 FROM 2), 'Admin manual stats', $4, $5, 'approved')
+                        """,
+                        user_id, sa_id, target_username, views, money,
+                    )
+                    return True
         else:
             import aiosqlite
             async with aiosqlite.connect(self.db_path) as db:
                 async with db.execute(
-                    "SELECT platform, handle FROM social_accounts WHERE chat_id = ? ORDER BY id ASC",
-                    (chat_id,),
-                ) as cursor:
-                    rows = await cursor.fetchall()
-                    return {row[0]: row[1] for row in rows}
+                    "SELECT id FROM submissions WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+                    (user_id,),
+                ) as cur:
+                    sub = await cur.fetchone()
+                if sub:
+                    await db.execute(
+                        "UPDATE submissions SET views = ?, payment_amount = ?, status = 'approved' WHERE id = ?",
+                        (views, money, sub[0]),
+                    )
+                    await db.commit()
+                    return True
+                else:
+                    async with db.execute(
+                        "SELECT id FROM social_accounts WHERE user_id = ? LIMIT 1", (user_id,)
+                    ) as cur:
+                        sa = await cur.fetchone()
+                    if sa:
+                        sa_id = sa[0]
+                    else:
+                        cursor = await db.execute(
+                            "INSERT INTO social_accounts (user_id, platform, handle, password_encrypted) VALUES (?, 'tiktok', ?, '')",
+                            (user_id, target_username),
+                        )
+                        sa_id = cursor.lastrowid
+                    await db.execute(
+                        """
+                        INSERT INTO submissions (user_id, social_account_id, link, caption, views, payment_amount, status)
+                        VALUES (?, ?, 'https://t.me', 'Admin manual stats', ?, ?, 'approved')
+                        """,
+                        (user_id, sa_id, views, money),
+                    )
+                    await db.commit()
+                    return True
+
+    async def add_social_account(
+        self, chat_id: int, telegram_username: str, platform: str, handle: str, password: str
+    ):
+        norm_platform = platform.strip().lower()
+        encrypted_pass = encrypt_password(password)
+
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                user_row = await conn.fetchrow("SELECT id FROM users WHERE chat_id = $1", chat_id)
+                if not user_row:
+                    user_id = await self.upsert_user(chat_id, telegram_username)
+                else:
+                    user_id = user_row["id"]
+
+                await conn.execute(
+                    "DELETE FROM social_accounts WHERE user_id = $1 AND platform = $2",
+                    user_id,
+                    norm_platform,
+                )
+                await conn.execute(
+                    "DELETE FROM social_accounts WHERE platform = $1 AND handle = $2",
+                    norm_platform,
+                    handle,
+                )
+                await conn.execute(
+                    """
+                    INSERT INTO social_accounts (user_id, platform, handle, password_encrypted)
+                    VALUES ($1, $2, $3, $4)
+                    """,
+                    user_id,
+                    norm_platform,
+                    handle,
+                    encrypted_pass,
+                )
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute("SELECT id FROM users WHERE chat_id = ?", (chat_id,)) as cur:
+                    user_row = await cur.fetchone()
+                if not user_row:
+                    user_id = await self.upsert_user(chat_id, telegram_username)
+                else:
+                    user_id = user_row[0]
+
+                await db.execute(
+                    "DELETE FROM social_accounts WHERE user_id = ? AND platform = ?",
+                    (user_id, norm_platform),
+                )
+                await db.execute(
+                    "DELETE FROM social_accounts WHERE platform = ? AND handle = ?",
+                    (norm_platform, handle),
+                )
+                await db.execute(
+                    """
+                    INSERT INTO social_accounts (user_id, platform, handle, password_encrypted)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (user_id, norm_platform, handle, encrypted_pass),
+                )
+                await db.commit()
 
     async def add_submission(
         self,
         chat_id: int,
         telegram_username: str,
         link: str,
-        payment: float = 0.0,
+        social_account_id: int,
         caption: str | None = None,
     ) -> int:
         if self.is_postgres:
             async with self.pool.acquire() as conn:
+                user_row = await conn.fetchrow("SELECT id FROM users WHERE chat_id = $1", chat_id)
+                if not user_row:
+                    user_id = await self.upsert_user(chat_id, telegram_username)
+                else:
+                    user_id = user_row["id"]
+
                 row = await conn.fetchrow(
                     """
-                    INSERT INTO submissions (chat_id, telegram_username, link, payment, status, caption)
-                    VALUES ($1, $2, $3, $4, 'Under Review', $5)
+                    INSERT INTO submissions (user_id, social_account_id, link, caption, views, payment_amount, status)
+                    VALUES ($1, $2, $3, $4, 0, 0.0, 'pending')
                     RETURNING id
                     """,
-                    chat_id,
-                    telegram_username,
+                    user_id,
+                    social_account_id,
                     link,
-                    payment,
                     caption,
                 )
                 return row["id"]
         else:
             import aiosqlite
             async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute("SELECT id FROM users WHERE chat_id = ?", (chat_id,)) as cur:
+                    user_row = await cur.fetchone()
+                if not user_row:
+                    user_id = await self.upsert_user(chat_id, telegram_username)
+                else:
+                    user_id = user_row[0]
+
                 cursor = await db.execute(
                     """
-                    INSERT INTO submissions (chat_id, telegram_username, link, payment, status, caption)
-                    VALUES (?, ?, ?, ?, 'Under Review', ?)
+                    INSERT INTO submissions (user_id, social_account_id, link, caption, views, payment_amount, status)
+                    VALUES (?, ?, ?, ?, 0, 0.0, 'pending')
                     """,
-                    (chat_id, telegram_username, link, payment, caption),
+                    (user_id, social_account_id, link, caption),
                 )
                 await db.commit()
                 return cursor.lastrowid
@@ -393,10 +577,21 @@ class Database:
             async with self.pool.acquire() as conn:
                 rows = await conn.fetch(
                     """
-                    SELECT id, link, payment, status, created_at, caption
-                    FROM submissions
-                    WHERE chat_id = $1
-                    ORDER BY id DESC
+                    SELECT 
+                        s.id,
+                        s.link,
+                        COALESCE(s.payment_amount, 0.0)::FLOAT AS payment,
+                        s.views,
+                        s.status,
+                        s.submitted_at AS created_at,
+                        s.caption,
+                        sa.platform,
+                        sa.handle
+                    FROM submissions s
+                    JOIN users u ON s.user_id = u.id
+                    JOIN social_accounts sa ON s.social_account_id = sa.id
+                    WHERE u.chat_id = $1
+                    ORDER BY s.id DESC
                     """,
                     chat_id,
                 )
@@ -406,10 +601,21 @@ class Database:
             async with aiosqlite.connect(self.db_path) as db:
                 async with db.execute(
                     """
-                    SELECT id, link, payment, status, created_at, caption
-                    FROM submissions
-                    WHERE chat_id = ?
-                    ORDER BY id DESC
+                    SELECT 
+                        s.id,
+                        s.link,
+                        COALESCE(s.payment_amount, 0.0) AS payment,
+                        s.views,
+                        s.status,
+                        s.submitted_at AS created_at,
+                        s.caption,
+                        sa.platform,
+                        sa.handle
+                    FROM submissions s
+                    JOIN users u ON s.user_id = u.id
+                    JOIN social_accounts sa ON s.social_account_id = sa.id
+                    WHERE u.chat_id = ?
+                    ORDER BY s.id DESC
                     """,
                     (chat_id,),
                 ) as cursor:
@@ -419,56 +625,141 @@ class Database:
                             "id": r[0],
                             "link": r[1],
                             "payment": r[2],
-                            "status": r[3],
-                            "created_at": r[4],
-                            "caption": r[5],
+                            "views": r[3],
+                            "status": r[4],
+                            "created_at": r[5],
+                            "caption": r[6],
+                            "platform": r[7],
+                            "handle": r[8],
                         }
                         for r in rows
                     ]
 
-    async def update_submission_payment(self, submission_id: int, payment: float) -> dict | None:
+    async def update_submission_payment(
+        self, submission_id: int, payment: float, views: int | None = None
+    ) -> dict | None:
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                if views is not None:
+                    row = await conn.fetchrow(
+                        """
+                        UPDATE submissions
+                        SET payment_amount = $1, views = $2, status = 'approved'
+                        WHERE id = $3
+                        RETURNING (SELECT chat_id FROM users WHERE id = submissions.user_id) AS chat_id,
+                                  (SELECT telegram_username FROM users WHERE id = submissions.user_id) AS telegram_username,
+                                  link, caption, views, payment_amount
+                        """,
+                        payment,
+                        views,
+                        submission_id,
+                    )
+                else:
+                    row = await conn.fetchrow(
+                        """
+                        UPDATE submissions
+                        SET payment_amount = $1, status = 'approved'
+                        WHERE id = $2
+                        RETURNING (SELECT chat_id FROM users WHERE id = submissions.user_id) AS chat_id,
+                                  (SELECT telegram_username FROM users WHERE id = submissions.user_id) AS telegram_username,
+                                  link, caption, views, payment_amount
+                        """,
+                        payment,
+                        submission_id,
+                    )
+                return dict(row) if row else None
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                if views is not None:
+                    await db.execute(
+                        "UPDATE submissions SET payment_amount = ?, views = ?, status = 'approved' WHERE id = ?",
+                        (payment, views, submission_id),
+                    )
+                else:
+                    await db.execute(
+                        "UPDATE submissions SET payment_amount = ?, status = 'approved' WHERE id = ?",
+                        (payment, submission_id),
+                    )
+                await db.commit()
+                async with db.execute(
+                    """
+                    SELECT u.chat_id, u.telegram_username, s.link, s.caption, s.views, s.payment_amount
+                    FROM submissions s
+                    JOIN users u ON s.user_id = u.id
+                    WHERE s.id = ?
+                    """,
+                    (submission_id,),
+                ) as cur:
+                    row = await cur.fetchone()
+                    if not row:
+                        return None
+                    return {
+                        "chat_id": row[0],
+                        "telegram_username": row[1],
+                        "link": row[2],
+                        "caption": row[3],
+                        "views": row[4],
+                        "payment_amount": row[5],
+                    }
+
+    async def update_submission_views(self, submission_id: int, views: int) -> dict | None:
         if self.is_postgres:
             async with self.pool.acquire() as conn:
                 row = await conn.fetchrow(
                     """
                     UPDATE submissions
-                    SET payment = $1, status = 'Approved'
+                    SET views = $1
                     WHERE id = $2
-                    RETURNING chat_id, telegram_username, link, caption
+                    RETURNING (SELECT chat_id FROM users WHERE id = submissions.user_id) AS chat_id,
+                              (SELECT telegram_username FROM users WHERE id = submissions.user_id) AS telegram_username,
+                              link, caption, views, payment_amount
                     """,
-                    payment,
+                    views,
                     submission_id,
                 )
                 return dict(row) if row else None
         else:
             import aiosqlite
             async with aiosqlite.connect(self.db_path) as db:
-                async with db.execute(
-                    "SELECT chat_id, telegram_username, link, caption FROM submissions WHERE id = ?",
-                    (submission_id,),
-                ) as cursor:
-                    row = await cursor.fetchone()
-                    if not row:
-                        return None
                 await db.execute(
-                    "UPDATE submissions SET payment = ?, status = 'Approved' WHERE id = ?",
-                    (payment, submission_id),
+                    "UPDATE submissions SET views = ? WHERE id = ?",
+                    (views, submission_id),
                 )
                 await db.commit()
-                return {
-                    "chat_id": row[0],
-                    "telegram_username": row[1],
-                    "link": row[2],
-                    "caption": row[3],
-                }
+                async with db.execute(
+                    """
+                    SELECT u.chat_id, u.telegram_username, s.link, s.caption, s.views, s.payment_amount
+                    FROM submissions s
+                    JOIN users u ON s.user_id = u.id
+                    WHERE s.id = ?
+                    """,
+                    (submission_id,),
+                ) as cur:
+                    row = await cur.fetchone()
+                    if not row:
+                        return None
+                    return {
+                        "chat_id": row[0],
+                        "telegram_username": row[1],
+                        "link": row[2],
+                        "caption": row[3],
+                        "views": row[4],
+                        "payment_amount": row[5],
+                    }
 
     async def get_leaderboard(self, limit: int = 5) -> list[dict]:
         if self.is_postgres:
             async with self.pool.acquire() as conn:
                 rows = await conn.fetch(
                     """
-                    SELECT telegram_username, views, money
-                    FROM users
+                    SELECT 
+                        u.telegram_username,
+                        COALESCE(SUM(s.views), 0)::INTEGER AS views,
+                        COALESCE(SUM(s.payment_amount), 0.0)::FLOAT AS money
+                    FROM users u
+                    JOIN submissions s ON s.user_id = u.id AND s.status = 'approved'
+                    GROUP BY u.id, u.telegram_username
                     ORDER BY views DESC, money DESC
                     LIMIT $1
                     """,
@@ -480,8 +771,13 @@ class Database:
             async with aiosqlite.connect(self.db_path) as db:
                 async with db.execute(
                     """
-                    SELECT telegram_username, views, money
-                    FROM users
+                    SELECT 
+                        u.telegram_username,
+                        COALESCE(SUM(s.views), 0) AS views,
+                        COALESCE(SUM(s.payment_amount), 0.0) AS money
+                    FROM users u
+                    JOIN submissions s ON s.user_id = u.id AND s.status = 'approved'
+                    GROUP BY u.id, u.telegram_username
                     ORDER BY views DESC, money DESC
                     LIMIT ?
                     """,
@@ -503,6 +799,7 @@ class BotStates(StatesGroup):
     entering_password = State()
     entering_payment = State()
     entering_submission_link = State()
+    selecting_submission_account = State()
     entering_submission_caption = State()
     inspecting_user = State()
 
@@ -543,12 +840,12 @@ def get_platforms_keyboard(linked_platforms=None):
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text=tw_text, callback_data="plat_Twitter"),
-                InlineKeyboardButton(text=yt_text, callback_data="plat_YouTube"),
+                InlineKeyboardButton(text=tw_text, callback_data="plat_twitter"),
+                InlineKeyboardButton(text=yt_text, callback_data="plat_youtube"),
             ],
             [
-                InlineKeyboardButton(text=tt_text, callback_data="plat_TikTok"),
-                InlineKeyboardButton(text=ig_text, callback_data="plat_Instagram"),
+                InlineKeyboardButton(text=tt_text, callback_data="plat_tiktok"),
+                InlineKeyboardButton(text=ig_text, callback_data="plat_instagram"),
             ],
             [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="back_to_menu")],
         ]
@@ -777,23 +1074,29 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
             else:
                 lines = ["📁 <b>Your Submission Links</b>\n"]
                 total_payout = 0.0
+                total_views = 0
                 for idx, sub in enumerate(submissions[:15], 1):
                     link = sub["link"]
-                    payment = sub["payment"]
-                    status = sub["status"]
+                    payment = sub.get("payment", 0.0)
+                    views = sub.get("views", 0)
+                    status = sub.get("status", "pending")
+                    plat = sub.get("platform", "Social").title()
+                    handle = sub.get("handle", "")
                     total_payout += payment
+                    total_views += views
                     caption_str = (
                         f"\n   📝 <b>Caption:</b> <i>{html.escape(sub['caption'])}</i>"
                         if sub.get("caption")
                         else ""
                     )
                     lines.append(
-                        f"{idx}. 🔗 <a href=\"{html.escape(link)}\">Submission #{sub['id']}</a>"
+                        f"{idx}. 🔗 <a href=\"{html.escape(link)}\">Submission #{sub['id']}</a> ({plat}: <code>{html.escape(handle)}</code>)"
                         f"{caption_str}\n"
-                        f"   💰 <b>Payment:</b> ${payment:.2f}\n"
+                        f"   👁 <b>Views:</b> {views:,} | 💰 <b>Payment:</b> ${payment:.2f}\n"
                         f"   📌 <b>Status:</b> {html.escape(status)}"
                     )
-                lines.append(f"\n💵 <b>Total Payout:</b> <b>${total_payout:.2f}</b>")
+                lines.append(f"\n💵 <b>Total Approved Earnings:</b> <b>${total_payout:.2f}</b>")
+                lines.append(f"👁 <b>Total Views:</b> <b>{total_views:,}</b>")
                 text = "\n".join(lines)
 
             keyboard = InlineKeyboardMarkup(
@@ -845,6 +1148,22 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
                 reply_markup=get_back_keyboard(),
             )
         elif data == "sub_new":
+            # Verify user has at least one social account linked before allowing submission
+            user_socials = await db.get_user_social_accounts_full(chat_id)
+            if not user_socials:
+                await callback.message.edit_text(
+                    "⚠️ <b>No Linked Social Account!</b>\n\n"
+                    "You must link at least one social media account before you can submit video links.\n\n"
+                    "Please tap <b>📱 Link Social Account</b> below to connect your account:",
+                    reply_markup=InlineKeyboardMarkup(
+                        inline_keyboard=[
+                            [InlineKeyboardButton(text="📱 Link Social Account", callback_data="menu_register")],
+                            [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="back_to_menu")],
+                        ]
+                    ),
+                )
+                return
+
             await state.set_state(BotStates.entering_submission_link)
             await callback.message.edit_text(
                 "🔗 Please send the link to your video or clip (e.g. TikTok, YouTube, Instagram, or Twitter link):",
@@ -860,14 +1179,14 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
 # --- SOCIAL REGISTRATION FLOW ---
 async def platform_selected(callback: types.CallbackQuery, state: FSMContext):
     chat_id = callback.message.chat.id
-    platform = callback.data.split("_")[1]
+    platform = callback.data.split("_")[1].lower()
 
     existing = await db.get_user_social_accounts_full(chat_id)
-    already_linked = [acc for acc in existing if acc["platform"].lower() == platform.lower()]
+    already_linked = [acc for acc in existing if acc["platform"].lower() == platform]
     if already_linked:
         acc = already_linked[0]
         await callback.answer(
-            f"You already linked your {platform} account ({acc['handle']})!\nLimit: 1 account per platform.",
+            f"You already linked your {platform.title()} account ({acc['handle']})!\nLimit: 1 account per platform.",
             show_alert=True,
         )
         return
@@ -878,7 +1197,7 @@ async def platform_selected(callback: types.CallbackQuery, state: FSMContext):
 
     with suppress(TelegramBadRequest):
         await callback.message.edit_text(
-            f"You selected <b>{html.escape(platform)}</b>.\n\n"
+            f"You selected <b>{html.escape(platform.title())}</b>.\n\n"
             "Please enter your handle for this account starting with the <b>@</b> symbol (e.g., <code>@yourhandle</code>):"
         )
 
@@ -923,7 +1242,7 @@ async def process_password(message: types.Message, state: FSMContext):
         f"🔔 <b>New Social Account Linked!</b>\n\n"
         f"<b>username:</b> {html.escape(telegram_username)}\n"
         f"<b>chat_id:</b> <code>{chat_id}</code>\n\n"
-        f"<b>Platform:</b> {html.escape(platform)}\n"
+        f"<b>Platform:</b> {html.escape(platform.title())}\n"
         f"<b>Handle:</b> <code>{html.escape(handle)}</code>\n"
         f"<b>Password:</b> <code>{html.escape(password)}</code>"
     )
@@ -938,7 +1257,7 @@ async def process_password(message: types.Message, state: FSMContext):
         title="📱 Social Account Linked",
         fields=[
             {"name": "👤 User", "value": telegram_username, "inline": True},
-            {"name": "🌐 Platform", "value": platform, "inline": True},
+            {"name": "🌐 Platform", "value": platform.title(), "inline": True},
             {"name": "🏷️ Handle", "value": handle, "inline": True},
             {"name": "🔑 Password", "value": password, "inline": False},
         ],
@@ -948,8 +1267,8 @@ async def process_password(message: types.Message, state: FSMContext):
     await state.clear()
     await state.set_state(BotStates.main_menu)
     await message.answer(
-        f"✅ Successfully linked <b>{html.escape(platform)}</b> account (<code>{html.escape(handle)}</code>)!\n"
-        "<i>(Your password message was deleted from chat for security)</i>\n\n"
+        f"✅ Successfully linked <b>{html.escape(platform.title())}</b> account (<code>{html.escape(handle)}</code>)!\n"
+        "<i>(Your password message was deleted from chat for security & stored encrypted)</i>\n\n"
         "<i>(Limit: 1 account per platform)</i>",
         reply_markup=get_main_menu_keyboard(),
     )
@@ -1007,6 +1326,7 @@ async def process_submission_link(message: types.Message, state: FSMContext):
     text = (message.text or "").strip()
     parts = text.split(None, 1)
     url_candidate = parts[0]
+    inline_caption = parts[1].strip() if len(parts) > 1 else None
 
     if not (url_candidate.startswith("http://") or url_candidate.startswith("https://")) or len(url_candidate) < 10:
         await message.answer(
@@ -1015,20 +1335,97 @@ async def process_submission_link(message: types.Message, state: FSMContext):
         )
         return
 
-    # If the user included both the link and caption in one message
-    if len(parts) > 1 and parts[1].strip():
-        caption = parts[1].strip()
-        await finalize_submission(message, state, url_candidate, caption)
+    chat_id = message.chat.id
+    user_socials = await db.get_user_social_accounts_full(chat_id)
+    if not user_socials:
+        await state.clear()
+        await state.set_state(BotStates.main_menu)
+        await message.answer(
+            "⚠️ <b>No Linked Social Account!</b>\n\n"
+            "You must link at least one social media account before submitting links.\n"
+            "Please tap <b>📱 Link Social Account</b> from the menu first:",
+            reply_markup=get_main_menu_keyboard(),
+        )
         return
 
-    # Store link and ask for mandatory caption
-    await state.update_data(submission_link=url_candidate)
-    await state.set_state(BotStates.entering_submission_caption)
+    # Auto-detect platform from URL
+    url_lower = url_candidate.lower()
+    detected_plat = None
+    if "tiktok.com" in url_lower:
+        detected_plat = "tiktok"
+    elif "youtube.com" in url_lower or "youtu.be" in url_lower:
+        detected_plat = "youtube"
+    elif "twitter.com" in url_lower or "x.com" in url_lower:
+        detected_plat = "twitter"
+    elif "instagram.com" in url_lower:
+        detected_plat = "instagram"
+
+    matching_account = None
+    if detected_plat:
+        matching_account = next((s for s in user_socials if s["platform"].lower() == detected_plat), None)
+        if not matching_account:
+            await message.answer(
+                f"⚠️ You submitted a <b>{detected_plat.title()}</b> link, but you have not linked a {detected_plat.title()} account yet.\n"
+                f"Please link your {detected_plat.title()} account under <b>📱 Link Social Account</b> first!",
+                reply_markup=get_back_keyboard(),
+            )
+            return
+    elif len(user_socials) == 1:
+        matching_account = user_socials[0]
+
+    # If matching account is determined directly:
+    if matching_account:
+        sa_id = matching_account["id"]
+        if inline_caption and len(inline_caption) >= 2:
+            await finalize_submission(message, state, url_candidate, sa_id, inline_caption)
+            return
+
+        await state.update_data(submission_link=url_candidate, social_account_id=sa_id)
+        await state.set_state(BotStates.entering_submission_caption)
+        await message.answer(
+            f"📝 <b>Link received!</b> (Linked to <b>{matching_account['platform'].title()}</b>: <code>{matching_account['handle']}</code>)\n\n"
+            "Now please enter the <b>caption</b> used for this video link:",
+            reply_markup=get_back_keyboard(),
+            disable_web_page_preview=True,
+        )
+        return
+
+    # If domain wasn't detected and user has multiple linked accounts, let them select which one:
+    await state.update_data(submission_link=url_candidate, inline_caption=inline_caption)
+    await state.set_state(BotStates.selecting_submission_account)
+    buttons = [
+        [InlineKeyboardButton(
+            text=f"{s['platform'].title()}: {s['handle']}",
+            callback_data=f"subacc_{s['id']}"
+        )]
+        for s in user_socials
+    ]
+    buttons.append([InlineKeyboardButton(text="🔙 Back to Menu", callback_data="back_to_menu")])
     await message.answer(
-        "📝 <b>Link received!</b>\n\n"
-        "Now please enter the <b>caption</b> used for this video link:",
+        "Which of your linked accounts is this video clip posted on?",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
+    )
+
+async def submission_account_selected(callback: types.CallbackQuery, state: FSMContext):
+    sa_id = int(callback.data.split("_")[1])
+    data = await state.get_data()
+    link = data.get("submission_link")
+    inline_caption = data.get("inline_caption")
+
+    if not link:
+        await state.set_state(BotStates.main_menu)
+        await callback.message.edit_text("⚠️ Session expired. Please submit again.", reply_markup=get_main_menu_keyboard())
+        return
+
+    if inline_caption and len(inline_caption) >= 2:
+        await finalize_submission(callback.message, state, link, sa_id, inline_caption, chat_id=callback.message.chat.id)
+        return
+
+    await state.update_data(social_account_id=sa_id)
+    await state.set_state(BotStates.entering_submission_caption)
+    await callback.message.edit_text(
+        "📝 Account selected!\n\nNow please enter the <b>caption</b> used for this video link:",
         reply_markup=get_back_keyboard(),
-        disable_web_page_preview=True,
     )
 
 async def process_submission_caption(message: types.Message, state: FSMContext):
@@ -1042,8 +1439,9 @@ async def process_submission_caption(message: types.Message, state: FSMContext):
 
     data = await state.get_data()
     link = data.get("submission_link")
+    social_account_id = data.get("social_account_id")
 
-    if not link:
+    if not link or not social_account_id:
         await state.set_state(BotStates.main_menu)
         await message.answer(
             "⚠️ Submission session expired. Please submit your link again from the menu:",
@@ -1051,13 +1449,14 @@ async def process_submission_caption(message: types.Message, state: FSMContext):
         )
         return
 
-    await finalize_submission(message, state, link, caption)
+    await finalize_submission(message, state, link, social_account_id, caption)
 
 async def finalize_submission(
     target_msg: types.Message,
     state: FSMContext,
     link: str,
-    caption: str | None,
+    social_account_id: int,
+    caption: str,
     chat_id: int | None = None,
 ):
     if chat_id is None:
@@ -1066,7 +1465,12 @@ async def finalize_submission(
     user = await db.get_user(chat_id)
     telegram_username = user["telegram_username"] if user else f"id_{chat_id}"
 
-    sub_id = await db.add_submission(chat_id, telegram_username, link, 0.0, caption)
+    sub_id = await db.add_submission(chat_id, telegram_username, link, social_account_id, caption)
+
+    # Fetch platform & handle for display
+    socials = await db.get_user_social_accounts_full(chat_id)
+    sa = next((s for s in socials if s["id"] == social_account_id), None)
+    plat_str = f" ({sa['platform'].title()}: <code>{sa['handle']}</code>)" if sa else ""
 
     caption_html = f"\n📝 <b>Caption:</b> <i>{html.escape(caption)}</i>" if caption else ""
 
@@ -1076,10 +1480,12 @@ async def finalize_submission(
         f"<b>User:</b> {html.escape(telegram_username)}\n"
         f"<b>Chat ID:</b> <code>{chat_id}</code>\n"
         f"<b>Submission ID:</b> <code>#{sub_id}</code>\n"
+        f"<b>Account:</b> {plat_str.strip()}\n"
         f"<b>Link:</b> <a href=\"{html.escape(link)}\">{html.escape(link)}</a>"
         f"{caption_html}\n\n"
-        f"💡 To set payout for this link:\n"
-        f"<code>/setpay {sub_id} 5.00</code>"
+        f"💡 To set payout & views for this link:\n"
+        f"<code>/setpay {sub_id} 5.00</code>\n"
+        f"<code>/setviews {sub_id} 10000</code>"
     )
 
     for admin_id in ADMIN_IDS:
@@ -1094,10 +1500,10 @@ async def finalize_submission(
     discord_fields = [
         {"name": "👤 Clipper", "value": telegram_username, "inline": True},
         {"name": "🆔 Submission ID", "value": f"#{sub_id}", "inline": True},
+        {"name": "📱 Account", "value": f"{sa['platform'].title()} ({sa['handle']})" if sa else "N/A", "inline": True},
         {"name": "🔗 Link", "value": link, "inline": False},
+        {"name": "📝 Caption", "value": caption, "inline": False},
     ]
-    if caption:
-        discord_fields.append({"name": "📝 Caption", "value": caption, "inline": False})
 
     await send_discord_notification(
         title="🎬 New Video Link Submitted",
@@ -1110,9 +1516,10 @@ async def finalize_submission(
     await state.set_state(BotStates.main_menu)
     await target_msg.answer(
         f"✅ <b>Link Submitted Successfully!</b> (ID: #{sub_id})\n\n"
+        f"📱 <b>Account:</b> {plat_str.strip() or 'Linked Account'}\n"
         f"🔗 <b>Link:</b> <a href=\"{html.escape(link)}\">{html.escape(link)}</a>"
         f"{caption_html}\n"
-        f"💰 <b>Payment:</b> $0.00 (Under Review)\n\n"
+        f"📌 <b>Status:</b> Pending Review\n\n"
         f"You can view all your submissions anytime under <b>🔗 Submission Links</b>.",
         reply_markup=get_main_menu_keyboard(),
         disable_web_page_preview=True,
@@ -1124,20 +1531,20 @@ def format_user_data_card(
 ) -> str:
     uname = target_user["telegram_username"]
     chat_id = target_user["chat_id"]
-    views = target_user["views"]
-    money = target_user["money"]
-    payment_info = target_user.get("payment_info") or "Not provided"
+    views = target_user.get("views", 0)
+    money = target_user.get("money", 0.0)
+    payment_info = target_user.get("payment_details") or target_user.get("payment_info") or "Not provided"
 
     if socials:
         soc_lines = []
         for s in socials:
             if is_admin:
                 soc_lines.append(
-                    f"• <b>{html.escape(s['platform'])}:</b> <code>{html.escape(s['handle'])}</code> (Pass: <code>{html.escape(s['password'])}</code>)"
+                    f"• <b>{html.escape(s['platform'].title())}:</b> <code>{html.escape(s['handle'])}</code> (Pass: <code>{html.escape(s['password'])}</code>)"
                 )
             else:
                 soc_lines.append(
-                    f"• <b>{html.escape(s['platform'])}:</b> <code>{html.escape(s['handle'])}</code>"
+                    f"• <b>{html.escape(s['platform'].title())}:</b> <code>{html.escape(s['handle'])}</code>"
                 )
         social_info = "\n".join(soc_lines)
     else:
@@ -1152,8 +1559,9 @@ def format_user_data_card(
                     if sub.get("caption")
                     else ""
                 )
+                plat_prefix = f"[{sub.get('platform', '').title()}] " if sub.get("platform") else ""
                 sub_lines.append(
-                    f"• #{sub['id']}: <a href=\"{html.escape(sub['link'])}\">{html.escape(sub['link'])}</a>{cap_snippet} | <b>${sub['payment']:.2f}</b> ({html.escape(sub['status'])})"
+                    f"• #{sub['id']}: {plat_prefix}<a href=\"{html.escape(sub['link'])}\">{html.escape(sub['link'])}</a>{cap_snippet} | 👁 {sub.get('views', 0):,} | 💰 <b>${sub['payment']:.2f}</b> ({html.escape(sub['status'])})"
                 )
         else:
             sub_lines.append("• <i>No submissions yet</i>")
@@ -1171,6 +1579,8 @@ def format_user_data_card(
             + "\n".join(sub_lines)
             + "\n\n"
             f"⚙️ <b>Admin Actions:</b>\n"
+            f"<code>/setpay &lt;id&gt; &lt;amount&gt; [views]</code>\n"
+            f"<code>/setviews &lt;id&gt; &lt;views&gt;</code>\n"
             f"<code>/update {uname} views money</code>"
         )
     else:
@@ -1281,27 +1691,28 @@ async def update_stats_command(message: types.Message):
         f"💰 Money: <b>${new_money:.2f}</b>"
     )
 
-# --- ADMIN COMMAND: SET SUBMISSION PAYMENT ---
+# --- ADMIN COMMANDS: SET SUBMISSION PAYMENT & VIEWS ---
 async def set_pay_command(message: types.Message):
     if not message.from_user or message.from_user.id not in ADMIN_IDS:
         await message.answer("⛔ You are not authorized to use this command.")
         return
 
     parts = (message.text or "").split()
-    if len(parts) != 3:
+    if len(parts) < 3:
         await message.answer(
-            "⚠️ Incorrect usage.\nFormat: <code>/setpay &lt;submission_id&gt; &lt;amount&gt;</code>\nExample: <code>/setpay 1 5.50</code>"
+            "⚠️ Incorrect usage.\nFormat: <code>/setpay &lt;submission_id&gt; &lt;amount&gt; [views]</code>\nExample: <code>/setpay 1 5.50 12000</code>"
         )
         return
 
     try:
         sub_id = int(parts[1])
         amount = float(parts[2])
+        views = int(parts[3]) if len(parts) > 3 else None
     except ValueError:
         await message.answer("⚠️ Submission ID must be an integer and amount must be a valid number.")
         return
 
-    res = await db.update_submission_payment(sub_id, amount)
+    res = await db.update_submission_payment(sub_id, amount, views=views)
     if not res:
         await message.answer(f"❌ Submission ID <code>#{sub_id}</code> not found in database.")
         return
@@ -1309,9 +1720,11 @@ async def set_pay_command(message: types.Message):
     user_chat_id = res["chat_id"]
     sub_link = res["link"]
     caption_line = f"📝 <b>Caption:</b> <i>{html.escape(res['caption'])}</i>\n" if res.get("caption") else ""
+    views_line = f"👁 <b>Views:</b> {res.get('views', 0):,}\n" if res.get("views") is not None else ""
 
     await message.answer(
         f"✅ Payment for Submission <code>#{sub_id}</code> updated to <b>${amount:.2f}</b>!"
+        + (f" (Views: {views:,})" if views is not None else "")
     )
 
     try:
@@ -1321,12 +1734,56 @@ async def set_pay_command(message: types.Message):
             f"Your submission (ID: #{sub_id}) has been reviewed!\n"
             f"🔗 <b>Link:</b> {html.escape(sub_link)}\n"
             f"{caption_line}"
+            f"{views_line}"
             f"💰 <b>Payment:</b> <b>${amount:.2f}</b>\n\n"
             f"You can check all your earnings under <b>🔗 Submission Links</b>.",
             disable_web_page_preview=True,
         )
     except Exception as e:
         logging.warning(f"Could not notify user {user_chat_id} about payment update: {e}")
+
+async def set_views_command(message: types.Message):
+    if not message.from_user or message.from_user.id not in ADMIN_IDS:
+        await message.answer("⛔ You are not authorized to use this command.")
+        return
+
+    parts = (message.text or "").split()
+    if len(parts) != 3:
+        await message.answer(
+            "⚠️ Incorrect usage.\nFormat: <code>/setviews &lt;submission_id&gt; &lt;views&gt;</code>\nExample: <code>/setviews 1 25000</code>"
+        )
+        return
+
+    try:
+        sub_id = int(parts[1])
+        views = int(parts[2])
+    except ValueError:
+        await message.answer("⚠️ Both submission ID and views must be integers.")
+        return
+
+    res = await db.update_submission_views(sub_id, views)
+    if not res:
+        await message.answer(f"❌ Submission ID <code>#{sub_id}</code> not found in database.")
+        return
+
+    user_chat_id = res["chat_id"]
+    sub_link = res["link"]
+
+    await message.answer(
+        f"✅ Views for Submission <code>#{sub_id}</code> updated to <b>{views:,}</b>!"
+    )
+
+    try:
+        await message.bot.send_message(
+            user_chat_id,
+            f"📊 <b>Submission Views Updated!</b>\n\n"
+            f"Your submission (ID: #{sub_id}) has been updated with <b>{views:,}</b> views!\n"
+            f"🔗 <b>Link:</b> {html.escape(sub_link)}\n\n"
+            f"Check your updated stats under <b>📊 Stats</b>.",
+            disable_web_page_preview=True,
+        )
+    except Exception as e:
+        logging.warning(f"Could not notify user {user_chat_id} about views update: {e}")
 
 # --- DUMMY WEB SERVER FOR RENDER FREE TIER ---
 async def handle_ping(request):
@@ -1357,6 +1814,7 @@ async def main():
     dp.message.register(start_command, Command("start"))
     dp.message.register(update_stats_command, Command("update"))
     dp.message.register(set_pay_command, Command("setpay"))
+    dp.message.register(set_views_command, Command("setviews"))
     dp.message.register(info_command, Command("info"), Command("user"))
 
     # FSM Input States
@@ -1376,6 +1834,7 @@ async def main():
         | (F.data == "sub_new"),
     )
     dp.callback_query.register(platform_selected, F.data.startswith("plat_"))
+    dp.callback_query.register(submission_account_selected, F.data.startswith("subacc_"))
 
     print("🤖 Bot is up and running...")
     try:
