@@ -57,44 +57,9 @@ If you prefer to separate the Telegram Bot from the Admin Website:
 
 ---
 
-## 🐳 Method 2: Deploy with Docker / Docker Compose (Any Linux OS / VPS)
+## 🖥️ Method 2: Deploy Directly on Linux OS (Ubuntu / Debian VPS with systemd)
 
-If you have a Linux VPS (Ubuntu, Debian, CentOS, AWS EC2, DigitalOcean, Hetzner, etc.):
-
-1. **Install Docker & Docker Compose** on your server:
-   ```bash
-   sudo apt update && sudo apt install -y docker.io docker-compose-v2
-   ```
-
-2. **Clone your repository**:
-   ```bash
-   git clone https://github.com/Leoul-Z/Clip.git
-   cd Clip
-   ```
-
-3. **Create your `.env` file**:
-   ```bash
-   nano .env
-   # Paste your DATABASE_URL, TOKEN, BOT_TOKEN, etc., then save (Ctrl+O, Enter, Ctrl+X)
-   ```
-
-4. **Start the application in background**:
-   ```bash
-   docker compose up -d --build
-   ```
-
-5. **Verify it is running**:
-   ```bash
-   docker compose ps
-   docker compose logs -f
-   ```
-   Your Admin website will be accessible on `http://<your-server-ip>:8080/`.
-
----
-
-## 🖥️ Method 3: Deploy Directly on Linux OS (Ubuntu / Debian VPS with systemd)
-
-If you prefer to run directly on the host OS with Python:
+If you are deploying directly onto a Linux VPS (Ubuntu / Debian on AWS EC2, DigitalOcean, Hetzner, etc.):
 
 1. **Install Python 3 and PostgreSQL client libraries**:
    ```bash
