@@ -71,6 +71,16 @@ class Database:
                             ('twitter', 45.00),
                             ('instagram', 40.00)
                         ON CONFLICT (platform) DO NOTHING;
+
+                        DO $$ 
+                        BEGIN 
+                            IF NOT EXISTS (
+                                SELECT 1 FROM information_schema.columns 
+                                WHERE table_name='social_accounts' AND column_name='status'
+                            ) THEN 
+                                ALTER TABLE social_accounts ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'approved';
+                            END IF; 
+                        END $$;
                     """)
             except Exception as e:
                 logging.info(f"Database schema init note: {e}")
@@ -132,6 +142,10 @@ class Database:
                         ('twitter', 45.0),
                         ('instagram', 40.0);
                 """)
+                async with db.execute("PRAGMA table_info(social_accounts)") as cur:
+                    columns = [row[1] for row in await cur.fetchall()]
+                    if "status" not in columns:
+                        await db.execute("ALTER TABLE social_accounts ADD COLUMN status TEXT DEFAULT 'approved'")
                 await db.commit()
             logging.info(" Connected to local SQLite database (bot_database.db).")
 
@@ -297,7 +311,7 @@ class Database:
             async with self.pool.acquire() as conn:
                 rows = await conn.fetch(
                     """
-                    SELECT sa.id, sa.platform, sa.handle, sa.password_encrypted
+                    SELECT sa.id, sa.platform, sa.handle, sa.password_encrypted, COALESCE(sa.status, 'approved') AS status
                     FROM social_accounts sa
                     JOIN users u ON sa.user_id = u.id
                     WHERE u.chat_id = $1
@@ -311,6 +325,7 @@ class Database:
                         "id": r["id"],
                         "platform": r["platform"],
                         "handle": r["handle"],
+                        "status": r["status"],
                         "password": decrypt_password(r["password_encrypted"]),
                         "password_encrypted": r["password_encrypted"],
                     })
@@ -320,7 +335,7 @@ class Database:
             async with aiosqlite.connect(self.db_path) as db:
                 async with db.execute(
                     """
-                    SELECT sa.id, sa.platform, sa.handle, sa.password_encrypted
+                    SELECT sa.id, sa.platform, sa.handle, sa.password_encrypted, COALESCE(sa.status, 'approved') AS status
                     FROM social_accounts sa
                     JOIN users u ON sa.user_id = u.id
                     WHERE u.chat_id = ?
@@ -337,6 +352,7 @@ class Database:
                             "handle": r[2],
                             "password": decrypt_password(r[3]),
                             "password_encrypted": r[3],
+                            "status": r[4],
                         })
                     return res
 
@@ -518,8 +534,8 @@ class Database:
                 )
                 await conn.execute(
                     """
-                    INSERT INTO social_accounts (user_id, platform, handle, password_encrypted)
-                    VALUES ($1, $2, $3, $4)
+                    INSERT INTO social_accounts (user_id, platform, handle, password_encrypted, status)
+                    VALUES ($1, $2, $3, $4, 'pending')
                     """,
                     user_id,
                     norm_platform,
@@ -546,8 +562,8 @@ class Database:
                 )
                 await db.execute(
                     """
-                    INSERT INTO social_accounts (user_id, platform, handle, password_encrypted)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO social_accounts (user_id, platform, handle, password_encrypted, status)
+                    VALUES (?, ?, ?, ?, 'pending')
                     """,
                     (user_id, norm_platform, handle, encrypted_pass),
                 )

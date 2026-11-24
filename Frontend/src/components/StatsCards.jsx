@@ -26,9 +26,20 @@ export default function StatsCards({ stats, onPendingClick }) {
         <span className="w-full text-lg sm:text-heading-1 font-heading-1 text-default-font truncate">
           {stats.total_social_accounts || 0}
         </span>
-        <span className="w-full text-caption font-caption text-subtext-color truncate">
-          Linked socials
-        </span>
+        <div className="flex w-full items-center gap-1.5 truncate">
+          {stats.pending_social_accounts > 0 ? (
+            <>
+              <div className="flex h-1.5 w-1.5 flex-none items-start rounded-full bg-amber-500 animate-pulse" />
+              <span className="text-caption font-caption text-amber-800 font-semibold truncate">
+                {stats.pending_social_accounts} pending review
+              </span>
+            </>
+          ) : (
+            <span className="w-full text-caption font-caption text-subtext-color truncate">
+              Linked socials
+            </span>
+          )}
+        </div>
       </div>
 
       {/* 3. Submissions */}

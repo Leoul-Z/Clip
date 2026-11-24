@@ -37,6 +37,16 @@ class BackendDatabase:
                             ('twitter', 45.00),
                             ('instagram', 40.00)
                         ON CONFLICT (platform) DO NOTHING;
+
+                        DO $$ 
+                        BEGIN 
+                            IF NOT EXISTS (
+                                SELECT 1 FROM information_schema.columns 
+                                WHERE table_name='social_accounts' AND column_name='status'
+                            ) THEN 
+                                ALTER TABLE social_accounts ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'approved';
+                            END IF; 
+                        END $$;
                     """)
             except Exception as e:
                 logging.info(f"Backend platform rates init note: {e}")
@@ -66,6 +76,10 @@ class BackendDatabase:
                         ('twitter', 45.0),
                         ('instagram', 40.0);
                 """)
+                async with db.execute("PRAGMA table_info(social_accounts)") as cur:
+                    columns = [row[1] for row in await cur.fetchall()]
+                    if "status" not in columns:
+                        await db.execute("ALTER TABLE social_accounts ADD COLUMN status TEXT DEFAULT 'approved'")
                 await db.commit()
             logging.info("Backend using SQLite fallback.")
 
@@ -87,7 +101,8 @@ class BackendDatabase:
                         (SELECT COUNT(*) FROM submissions WHERE status = 'rejected') AS rejected_submissions,
                         (SELECT COALESCE(SUM(views), 0)::BIGINT FROM submissions WHERE status = 'approved') AS total_views,
                         (SELECT COALESCE(SUM(payment_amount), 0.0)::FLOAT FROM submissions WHERE status = 'approved') AS total_payments,
-                        (SELECT COUNT(*) FROM social_accounts) AS total_social_accounts
+                        (SELECT COUNT(*) FROM social_accounts) AS total_social_accounts,
+                        (SELECT COUNT(*) FROM social_accounts WHERE status = 'pending') AS pending_social_accounts
                 """)
                 return dict(row) if row else {}
         else:
@@ -103,7 +118,8 @@ class BackendDatabase:
                         (SELECT COUNT(*) FROM submissions WHERE status = 'rejected') AS rejected_submissions,
                         (SELECT COALESCE(SUM(views), 0) FROM submissions WHERE status = 'approved') AS total_views,
                         (SELECT COALESCE(SUM(payment_amount), 0.0) FROM submissions WHERE status = 'approved') AS total_payments,
-                        (SELECT COUNT(*) FROM social_accounts) AS total_social_accounts
+                        (SELECT COUNT(*) FROM social_accounts) AS total_social_accounts,
+                        (SELECT COUNT(*) FROM social_accounts WHERE status = 'pending') AS pending_social_accounts
                 """) as cur:
                     row = await cur.fetchone()
                     if row:
@@ -117,6 +133,7 @@ class BackendDatabase:
                             "total_views": row[6],
                             "total_payments": row[7],
                             "total_social_accounts": row[8],
+                            "pending_social_accounts": row[9],
                         }
                     return {}
 
@@ -146,12 +163,13 @@ class BackendDatabase:
                         sa.platform, 
                         sa.handle, 
                         sa.password_encrypted, 
+                        COALESCE(sa.status, 'approved') AS status,
                         sa.created_at,
                         COALESCE(SUM(sub.views), 0)::INTEGER AS views,
                         COALESCE(SUM(sub.payment_amount), 0.0)::FLOAT AS money
                     FROM social_accounts sa
                     LEFT JOIN submissions sub ON sub.social_account_id = sa.id AND sub.status = 'approved'
-                    GROUP BY sa.id, sa.user_id, sa.platform, sa.handle, sa.password_encrypted, sa.created_at
+                    GROUP BY sa.id, sa.user_id, sa.platform, sa.handle, sa.password_encrypted, sa.status, sa.created_at
                     ORDER BY sa.id ASC
                 """)
                 user_list = [dict(r) for r in user_rows]
@@ -190,17 +208,18 @@ class BackendDatabase:
                         sa.platform, 
                         sa.handle, 
                         sa.password_encrypted, 
+                        COALESCE(sa.status, 'approved') AS status,
                         sa.created_at,
                         COALESCE(SUM(sub.views), 0) AS views,
                         COALESCE(SUM(sub.payment_amount), 0.0) AS money
                     FROM social_accounts sa
                     LEFT JOIN submissions sub ON sub.social_account_id = sa.id AND sub.status = 'approved'
-                    GROUP BY sa.id, sa.user_id, sa.platform, sa.handle, sa.password_encrypted, sa.created_at
+                    GROUP BY sa.id, sa.user_id, sa.platform, sa.handle, sa.password_encrypted, sa.status, sa.created_at
                     ORDER BY sa.id ASC
                 """) as cur:
                     s_tuples = await cur.fetchall()
                     social_list = [
-                        {"id": r[0], "user_id": r[1], "platform": r[2], "handle": r[3], "password_encrypted": r[4], "created_at": r[5], "views": r[6], "money": r[7]}
+                        {"id": r[0], "user_id": r[1], "platform": r[2], "handle": r[3], "password_encrypted": r[4], "status": r[5], "created_at": r[6], "views": r[7], "money": r[8]}
                         for r in s_tuples
                     ]
 
@@ -214,6 +233,7 @@ class BackendDatabase:
                 "id": s["id"],
                 "platform": s["platform"],
                 "handle": s["handle"],
+                "status": s.get("status", "approved"),
                 "password": decrypted_pass,
                 "password_encrypted": s.get("password_encrypted"),
                 "created_at": s.get("created_at"),
@@ -302,9 +322,17 @@ class BackendDatabase:
                 await db.commit()
                 return cur.lastrowid
 
-    async def update_social_account(self, account_id: int, platform: str | None = None, handle: str | None = None, password: str | None = None) -> bool:
+    async def update_social_account(
+        self,
+        account_id: int,
+        platform: str | None = None,
+        handle: str | None = None,
+        password: str | None = None,
+        status: str | None = None,
+    ) -> bool:
         encrypted_pass = encrypt_password(password) if password is not None else None
         norm_platform = platform.strip().lower() if platform is not None else None
+        norm_status = status.strip().lower() if status is not None else None
 
         if self.is_postgres:
             async with self.pool.acquire() as conn:
@@ -313,9 +341,10 @@ class BackendDatabase:
                     SET 
                         platform = COALESCE($1, platform),
                         handle = COALESCE($2, handle),
-                        password_encrypted = COALESCE($3, password_encrypted)
-                    WHERE id = $4
-                """, norm_platform, handle, encrypted_pass, account_id)
+                        password_encrypted = COALESCE($3, password_encrypted),
+                        status = COALESCE($4, status)
+                    WHERE id = $5
+                """, norm_platform, handle, encrypted_pass, norm_status, account_id)
                 return True
         else:
             import aiosqlite
@@ -331,11 +360,78 @@ class BackendDatabase:
                 if encrypted_pass is not None:
                     updates.append("password_encrypted = ?")
                     params.append(encrypted_pass)
+                if norm_status is not None:
+                    updates.append("status = ?")
+                    params.append(norm_status)
                 if updates:
                     params.append(account_id)
                     await db.execute(f"UPDATE social_accounts SET {', '.join(updates)} WHERE id = ?", params)
                     await db.commit()
                 return True
+
+    async def get_social_account_with_user(self, account_id: int) -> dict | None:
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("""
+                    SELECT 
+                        sa.id,
+                        sa.user_id,
+                        sa.platform,
+                        sa.handle,
+                        sa.password_encrypted,
+                        COALESCE(sa.status, 'approved') AS status,
+                        sa.created_at,
+                        u.chat_id,
+                        u.telegram_username
+                    FROM social_accounts sa
+                    JOIN users u ON u.id = sa.user_id
+                    WHERE sa.id = $1
+                """, account_id)
+                return dict(row) if row else None
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute("""
+                    SELECT 
+                        sa.id,
+                        sa.user_id,
+                        sa.platform,
+                        sa.handle,
+                        sa.password_encrypted,
+                        COALESCE(sa.status, 'approved') AS status,
+                        sa.created_at,
+                        u.chat_id,
+                        u.telegram_username
+                    FROM social_accounts sa
+                    JOIN users u ON u.id = sa.user_id
+                    WHERE sa.id = ?
+                """, (account_id,)) as cur:
+                    r = await cur.fetchone()
+                    if r:
+                        return {
+                            "id": r[0],
+                            "user_id": r[1],
+                            "platform": r[2],
+                            "handle": r[3],
+                            "password_encrypted": r[4],
+                            "status": r[5],
+                            "created_at": r[6],
+                            "chat_id": r[7],
+                            "telegram_username": r[8],
+                        }
+                    return None
+
+    async def review_social_account(self, account_id: int, status: str) -> dict | None:
+        norm_status = status.strip().lower()
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                await conn.execute("UPDATE social_accounts SET status = $1 WHERE id = $2", norm_status, account_id)
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute("UPDATE social_accounts SET status = ? WHERE id = ?", (norm_status, account_id))
+                await db.commit()
+        return await self.get_social_account_with_user(account_id)
 
     async def delete_social_account(self, account_id: int) -> bool:
         if self.is_postgres:

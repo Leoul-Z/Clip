@@ -62,6 +62,24 @@ async def process_submission_link(message: types.Message, state: FSMContext):
 
     # If matching account is determined directly:
     if matching_account:
+        acc_status = (matching_account.get("status") or "approved").lower()
+        if acc_status == "pending":
+            await message.answer(
+                f"⏳ <b>Account Under Review</b>\n\n"
+                f"Your <b>{matching_account['platform'].title()}</b> account (<code>{matching_account['handle']}</code>) is currently pending admin review.\n\n"
+                f"You will receive a notification here as soon as an admin approves your handle. Once approved, you can immediately submit your clips!",
+                reply_markup=get_back_keyboard(),
+            )
+            return
+        elif acc_status == "rejected":
+            await message.answer(
+                f"❌ <b>Account Not Approved</b>\n\n"
+                f"Your <b>{matching_account['platform'].title()}</b> account (<code>{matching_account['handle']}</code>) was not approved by the admin.\n\n"
+                f"Please update or re-link your account under <b>📱 Link Social Account</b> before submitting clips.",
+                reply_markup=get_back_keyboard(),
+            )
+            return
+
         sa_id = matching_account["id"]
         if inline_caption and len(inline_caption) >= 2:
             await finalize_submission(message, state, url_candidate, sa_id, inline_caption)
@@ -80,13 +98,18 @@ async def process_submission_link(message: types.Message, state: FSMContext):
     # If domain wasn't detected and user has multiple linked accounts, let them select which one:
     await state.update_data(submission_link=url_candidate, inline_caption=inline_caption)
     await state.set_state(BotStates.selecting_submission_account)
-    buttons = [
-        [InlineKeyboardButton(
-            text=f"{s['platform'].title()}: {s['handle']}",
+    buttons = []
+    for s in user_socials:
+        status_tag = ""
+        st = (s.get("status") or "approved").lower()
+        if st == "pending":
+            status_tag = " (⏳ Pending)"
+        elif st == "rejected":
+            status_tag = " (❌ Rejected)"
+        buttons.append([InlineKeyboardButton(
+            text=f"{s['platform'].title()}: {s['handle']}{status_tag}",
             callback_data=f"subacc_{s['id']}"
-        )]
-        for s in user_socials
-    ]
+        )])
     buttons.append([InlineKeyboardButton(text="🔙 Back to Menu", callback_data="back_to_menu")])
     await message.answer(
         "Which of your linked accounts is this video clip posted on?",
@@ -95,6 +118,18 @@ async def process_submission_link(message: types.Message, state: FSMContext):
 
 async def submission_account_selected(callback: types.CallbackQuery, state: FSMContext):
     sa_id = int(callback.data.split("_")[1])
+    chat_id = callback.message.chat.id
+    user_socials = await db.get_user_social_accounts_full(chat_id)
+    selected_acc = next((s for s in user_socials if s["id"] == sa_id), None)
+    if selected_acc:
+        acc_status = (selected_acc.get("status") or "approved").lower()
+        if acc_status == "pending":
+            await callback.answer("⏳ This account is currently pending admin review.", show_alert=True)
+            return
+        elif acc_status == "rejected":
+            await callback.answer("❌ This account was not approved by admin. Please re-link in menu.", show_alert=True)
+            return
+
     data = await state.get_data()
     link = data.get("submission_link")
     inline_caption = data.get("inline_caption")

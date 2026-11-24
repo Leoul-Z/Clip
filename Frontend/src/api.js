@@ -77,6 +77,10 @@ export const AdminAPI = {
     const res = await api.put(`/api/admin/socials/${accountId}`, data);
     return res.data;
   },
+  reviewSocial: async (accountId, data) => {
+    const res = await api.post(`/api/admin/socials/${accountId}/review`, data);
+    return res.data;
+  },
   deleteSocial: async (accountId) => {
     const res = await api.delete(`/api/admin/socials/${accountId}`);
     return res.data;

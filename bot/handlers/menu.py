@@ -19,14 +19,22 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
             existing = await db.get_user_social_accounts_full(chat_id)
             linked_platforms = [acc["platform"] for acc in existing]
 
+            def status_badge(st):
+                st = (st or "approved").lower()
+                if st == "pending":
+                    return " ⏳ <i>(Pending Review)</i>"
+                elif st == "rejected":
+                    return " ❌ <i>(Rejected)</i>"
+                return " ✅ <i>(Approved)</i>"
+
             if len(linked_platforms) >= 4:
                 lines = ["📱 <b>Your Linked Accounts:</b>\n"]
                 for acc in existing:
                     lines.append(
-                        f"• <b>{html.escape(acc['platform'])}:</b> <code>{html.escape(acc['handle'])}</code>"
+                        f"• <b>{html.escape(acc['platform'].title())}:</b> <code>{html.escape(acc['handle'])}</code>{status_badge(acc.get('status'))}"
                     )
                 lines.append(
-                    "\n✅ <i>You have already linked all 4 available platforms (limit: 1 per platform).</i>"
+                    "\n✅ <i>You have linked all 4 available platforms (limit: 1 per platform).</i>"
                 )
                 await callback.message.edit_text(
                     "\n".join(lines),
@@ -40,7 +48,7 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
                     lines.append("\n<b>Already linked:</b>")
                     for acc in existing:
                         lines.append(
-                            f"• {html.escape(acc['platform'])}: <code>{html.escape(acc['handle'])}</code>"
+                            f"• <b>{html.escape(acc['platform'].title())}:</b> <code>{html.escape(acc['handle'])}</code>{status_badge(acc.get('status'))}"
                         )
                 await callback.message.edit_text(
                     "\n".join(lines),

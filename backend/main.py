@@ -68,6 +68,12 @@ class UpdateSocialRequest(BaseModel):
     platform: Optional[str] = None
     handle: Optional[str] = None
     password: Optional[str] = None
+    status: Optional[str] = None
+
+class ReviewSocialRequest(BaseModel):
+    status: str
+    message: Optional[str] = None
+    notify_user: bool = True
 
 class UpdateSubmissionRequest(BaseModel):
     views: Optional[int] = None
@@ -163,6 +169,49 @@ async def update_social(account_id: int, body: UpdateSocialRequest, _: bool = De
         password=body.password,
     )
     return {"success": success, "message": "Social account password updated"}
+
+@app.post("/api/admin/socials/{account_id}/review")
+async def review_social(account_id: int, body: ReviewSocialRequest, _: bool = Depends(get_current_admin)):
+    st = body.status.strip().lower()
+    if st not in ("approved", "rejected", "pending"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Status must be 'approved', 'rejected', or 'pending'",
+        )
+
+    res = await backend_db.review_social_account(account_id=account_id, status=st)
+    if not res:
+        raise HTTPException(status_code=404, detail=f"Social account #{account_id} not found")
+
+    # If notification is enabled, send Telegram DM
+    if body.notify_user and res.get("chat_id"):
+        plat_name = (res.get("platform") or "Social").title()
+        handle_val = res.get("handle") or ""
+        custom_note = f"\n📝 <b>Admin Note:</b> <i>{html.escape(body.message.strip())}</i>\n" if body.message and body.message.strip() else ""
+
+        if st == "approved":
+            msg_text = (
+                f"🎉 <b>Social Account Approved!</b>\n\n"
+                f"Your <b>{plat_name}</b> account (<code>{html.escape(handle_val)}</code>) has been approved by the admin.\n"
+                f"{custom_note}\n"
+                f"🚀 You can now submit your video clips posted from this handle under <b>➕ Submit Link</b>!"
+            )
+        elif st == "rejected":
+            msg_text = (
+                f"⚠️ <b>Social Account Not Approved</b>\n\n"
+                f"Your <b>{plat_name}</b> account (<code>{html.escape(handle_val)}</code>) was not approved by the admin.\n"
+                f"{custom_note}\n"
+                f"Please verify your handle/password and link your account again under <b>📱 Link Social Account</b>."
+            )
+        else:
+            msg_text = (
+                f"ℹ️ <b>Social Account Status Update</b>\n\n"
+                f"Your <b>{plat_name}</b> account (<code>{html.escape(handle_val)}</code>) is marked as: <b>Pending Review</b>.\n"
+                f"{custom_note}"
+            )
+        await send_telegram_message(res["chat_id"], msg_text)
+
+    return {"success": True, "social": res}
 
 @app.delete("/api/admin/socials/{account_id}")
 async def delete_social(account_id: int, _: bool = Depends(get_current_admin)):

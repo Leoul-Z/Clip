@@ -4,6 +4,7 @@ import StatsCards from './components/StatsCards';
 import UsersManager from './components/UsersManager';
 import SubmissionsManager from './components/SubmissionsManager';
 import EditSocialModal from './components/EditSocialModal';
+import ReviewSocialModal from './components/ReviewSocialModal';
 import EditSubmissionModal from './components/EditSubmissionModal';
 import RatesModal from './components/RatesModal';
 import SendMessageModal from './components/SendMessageModal';
@@ -41,10 +42,37 @@ export default function App() {
   const [socialChatId, setSocialChatId] = useState(null);
   const [isSocialModalOpen, setIsSocialModalOpen] = useState(false);
 
+  const [reviewingSocial, setReviewingSocial] = useState(null);
+  const [reviewingSocialUser, setReviewingSocialUser] = useState(null);
+  const [isReviewSocialModalOpen, setIsReviewSocialModalOpen] = useState(false);
+
   const [editingSubmission, setEditingSubmission] = useState(null);
   const [isSubModalOpen, setIsSubModalOpen] = useState(false);
 
   const [isRatesModalOpen, setIsRatesModalOpen] = useState(false);
+
+  const handleOpenReviewSocial = (social, user) => {
+    setReviewingSocial(social);
+    setReviewingSocialUser(user);
+    setIsReviewSocialModalOpen(true);
+  };
+
+  const handleSaveSocialReview = async (accountId, data) => {
+    try {
+      await AdminAPI.reviewSocial(accountId, data);
+      addToast(
+        data.status === 'approved'
+          ? 'Social account approved! Clipper notified via Telegram.'
+          : 'Social account rejected! Clipper notified via Telegram.',
+        'success'
+      );
+      loadData();
+    } catch (err) {
+      console.error('Review social account error:', err);
+      addToast(err.response?.data?.detail || 'Failed to review social account', 'error');
+      throw err;
+    }
+  };
 
   // Toast trigger
   const addToast = (message, type = 'success') => {
@@ -312,6 +340,12 @@ export default function App() {
                   {users.length}
                 </span>
               </div>
+              {stats.pending_social_accounts > 0 && (
+                <div
+                  className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"
+                  title={`${stats.pending_social_accounts} pending social accounts review`}
+                />
+              )}
             </div>
 
             <div
@@ -390,6 +424,7 @@ export default function App() {
             onViewSubmissions={handleViewUserSubmissions}
             onSendMessage={handleOpenUserMessage}
             onCopy={copyToClipboard}
+            onReviewSocial={handleOpenReviewSocial}
           />
         )}
 
@@ -426,6 +461,14 @@ export default function App() {
         onClose={() => setIsSocialModalOpen(false)}
         onSave={handleSaveSocial}
         onDelete={handleDeleteSocial}
+      />
+
+      <ReviewSocialModal
+        isOpen={isReviewSocialModalOpen}
+        account={reviewingSocial}
+        user={reviewingSocialUser}
+        onClose={() => setIsReviewSocialModalOpen(false)}
+        onSave={handleSaveSocialReview}
       />
 
       <EditSubmissionModal

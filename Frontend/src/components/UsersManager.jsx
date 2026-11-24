@@ -6,6 +6,7 @@ export default function UsersManager({
   onViewSubmissions,
   onSendMessage,
   onCopy,
+  onReviewSocial,
 }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
@@ -23,6 +24,7 @@ export default function UsersManager({
     const matchesSearch = !q || uname.includes(q) || cid.includes(q) || bank.includes(q) || handles.includes(q);
     if (!matchesSearch) return false;
 
+    if (filter === 'has_pending_socials') return (u.social_accounts || []).some((sa) => sa.status === 'pending');
     if (filter === 'has_bank') return u.payment_details && u.payment_details.trim().length > 0;
     if (filter === 'missing_bank') return !u.payment_details || u.payment_details.trim().length === 0;
     if (filter === 'has_socials') return (u.social_accounts || []).length > 0;
@@ -151,6 +153,7 @@ export default function UsersManager({
             className="text-body font-body text-default-font bg-transparent focus:outline-none pr-5 cursor-pointer appearance-none"
           >
             <option value="all">All clippers</option>
+            <option value="has_pending_socials">With pending accounts</option>
             <option value="has_bank">With bank info</option>
             <option value="missing_bank">Missing bank info</option>
             <option value="has_socials">With linked socials</option>
@@ -248,6 +251,12 @@ export default function UsersManager({
                             />
                           </svg>
                         </div>
+                        {socials.some((sa) => sa.status === 'pending') && (
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-100 rounded-full px-2 py-0.5 flex items-center gap-1 border border-amber-300">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            Pending Account
+                          </span>
+                        )}
                       </div>
                       <span className="w-full text-monospace-caption font-monospace-caption text-subtext-color">
                         ID {u.chat_id}
@@ -436,9 +445,12 @@ export default function UsersManager({
                   {/* Right Column: Linked Social Accounts Table */}
                   <div className="flex flex-col items-start px-5 py-3 grow min-w-0 overflow-x-auto">
                     {/* Column Headers */}
-                    <div className="w-full items-start gap-4 pb-2 grid grid-cols-[1.3fr_1.5fr_0.7fr_0.8fr] min-w-[420px]">
+                    <div className="w-full items-start gap-4 pb-2 grid grid-cols-[1.2fr_1.3fr_1.4fr_0.6fr_0.7fr] min-w-[580px]">
                       <span className="self-stretch text-overline font-overline text-subtext-color uppercase">
                         Account
+                      </span>
+                      <span className="self-stretch text-overline font-overline text-subtext-color uppercase">
+                        Status &amp; Review
                       </span>
                       <span className="self-stretch text-overline font-overline text-subtext-color uppercase">
                         Login password
@@ -459,11 +471,12 @@ export default function UsersManager({
                       socials.map((sa) => {
                         const isRevealed = showAllPasswords || revealedIds.has(sa.id);
                         const passValue = sa.password || '';
+                        const st = (sa.status || 'approved').toLowerCase();
 
                         return (
                           <div
                             key={sa.id}
-                            className="w-full items-center gap-4 border-t border-solid border-neutral-border py-2.5 grid grid-cols-[1.3fr_1.5fr_0.7fr_0.8fr] min-w-[420px]"
+                            className="w-full items-center gap-4 border-t border-solid border-neutral-border py-2.5 grid grid-cols-[1.2fr_1.3fr_1.4fr_0.6fr_0.7fr] min-w-[580px]"
                           >
                             {/* Platform Icon & Handle */}
                             <div className="flex items-center gap-2 min-w-0">
@@ -474,6 +487,54 @@ export default function UsersManager({
                               >
                                 {sa.handle}
                               </span>
+                            </div>
+
+                            {/* Status & Review Action */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {st === 'pending' ? (
+                                <>
+                                  <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 rounded-full px-2 py-0.5 flex items-center gap-1 border border-amber-300">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                    Pending
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => onReviewSocial && onReviewSocial(sa, u)}
+                                    className="text-[11px] bg-brand-primary hover:bg-brand-600 text-white font-semibold px-2 py-0.5 rounded cursor-pointer transition shadow-2xs"
+                                    title="Accept or reject this social account"
+                                  >
+                                    Review
+                                  </button>
+                                </>
+                              ) : st === 'rejected' ? (
+                                <>
+                                  <span className="text-[11px] font-semibold text-error-800 bg-error-100 rounded-full px-2 py-0.5 border border-error-200">
+                                    Rejected
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => onReviewSocial && onReviewSocial(sa, u)}
+                                    className="text-[11px] text-neutral-400 hover:text-neutral-700 underline cursor-pointer"
+                                    title="Re-review account"
+                                  >
+                                    Re-review
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-[11px] font-semibold text-success-800 bg-success-100 rounded-full px-2 py-0.5 border border-success-200">
+                                    Approved
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => onReviewSocial && onReviewSocial(sa, u)}
+                                    className="text-[11px] text-neutral-400 hover:text-neutral-700 underline cursor-pointer"
+                                    title="Change review status"
+                                  >
+                                    Change
+                                  </button>
+                                </>
+                              )}
                             </div>
 
                             {/* Password Pill with Eye Toggle */}
