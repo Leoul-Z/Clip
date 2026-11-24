@@ -4,3 +4,7 @@ __pycache__/
 *.db
 .venv/
 env/
+node_modules/
+Frontend/node_modules/
+*.log
+scratch/
