@@ -1,15 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { X, PenSquare, Trash2, Check, ExternalLink, Send, Eye, DollarSign, Calculator, Zap } from 'lucide-react';
 
-export default function EditSubmissionModal({ isOpen, submission, rates, onClose, onSave, onDelete }) {
+export default function EditSubmissionModal({
+  isOpen,
+  submission,
+  rates,
+  onClose,
+  onSave,
+  onDelete,
+}) {
   const [views, setViews] = useState(0);
-  const [paymentAmount, setPaymentAmount] = useState(0);
+  const [paymentAmount, setPaymentAmount] = useState('0.00');
   const [status, setStatus] = useState('approved');
   const [link, setLink] = useState('');
+  const [isEditingLink, setIsEditingLink] = useState(false);
   const [caption, setCaption] = useState('');
   const [notifyUser, setNotifyUser] = useState(true);
   const [loading, setLoading] = useState(false);
 
+  // Platform active payout rate per 1,000 views
   const getPlatformRate = () => {
     const p = (submission?.platform || '').toLowerCase();
     if (p.includes('youtube')) return rates?.youtube ?? 60.0;
@@ -21,40 +29,57 @@ export default function EditSubmissionModal({ isOpen, submission, rates, onClose
 
   const activeRate = getPlatformRate();
 
-  const handleAutoCalculate = () => {
-    const v = parseInt(views, 10) || 0;
-    const calc = ((v / 1000) * activeRate).toFixed(2);
-    setPaymentAmount(calc);
-  };
-
-  const handleViewsChange = (newVal) => {
-    setViews(newVal);
-    if (!paymentAmount || parseFloat(paymentAmount) === 0) {
-      const v = parseInt(newVal, 10) || 0;
-      setPaymentAmount(((v / 1000) * activeRate).toFixed(2));
-    }
-  };
-
   useEffect(() => {
     if (submission) {
       setViews(submission.views || 0);
       setPaymentAmount(Number(submission.payment_amount || 0).toFixed(2));
       setStatus(submission.status || 'approved');
       setLink(submission.link || '');
+      setIsEditingLink(false);
       setCaption(submission.caption || '');
       setNotifyUser(true);
     }
-  }, [submission]);
+  }, [submission, isOpen]);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen || !submission) return null;
 
+  const currentViewsNum = parseInt(views, 10) || 0;
+  const expectedPayoutNum = (currentViewsNum / 1000) * activeRate;
+  const expectedPayoutStr = expectedPayoutNum.toFixed(2);
+  const currentPayoutNum = parseFloat(paymentAmount) || 0;
+  const isMatchingPayout = Math.abs(currentPayoutNum - expectedPayoutNum) < 0.01;
+
+  const handleViewsChange = (newVal) => {
+    setViews(newVal);
+    const parsed = parseInt(newVal, 10) || 0;
+    // Auto calculate if payout was 0 or already matched the previous rate
+    if (!paymentAmount || parseFloat(paymentAmount) === 0 || isMatchingPayout) {
+      setPaymentAmount(((parsed / 1000) * activeRate).toFixed(2));
+    }
+  };
+
+  const handleSyncPayout = () => {
+    setPaymentAmount(expectedPayoutStr);
+  };
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setLoading(true);
     try {
       await onSave(submission.id, {
-        views: parseInt(views, 10),
-        payment_amount: parseFloat(paymentAmount),
+        views: parseInt(views, 10) || 0,
+        payment_amount: parseFloat(paymentAmount) || 0,
         status,
         link,
         caption,
@@ -67,222 +92,550 @@ export default function EditSubmissionModal({ isOpen, submission, rates, onClose
   };
 
   const handleDelete = () => {
-    if (window.confirm(`Are you sure you want to delete Submission #${submission.id}?`)) {
+    if (
+      window.confirm(
+        `Are you sure you want to delete Submission #${submission.id} for @${
+          submission.telegram_username || submission.chat_id
+        }?`
+      )
+    ) {
       onDelete(submission.id);
       onClose();
     }
   };
 
+  const formatRelativeTime = (isoStr) => {
+    if (!isoStr) return 'recently';
+    try {
+      const diffMs = Date.now() - new Date(isoStr).getTime();
+      const diffSec = Math.floor(diffMs / 1000);
+      if (diffSec < 60) return 'just now';
+      const diffMin = Math.floor(diffSec / 60);
+      if (diffMin < 60) return `${diffMin}m ago`;
+      const diffHrs = Math.floor(diffMin / 60);
+      if (diffHrs < 24) return `${diffHrs}h ago`;
+      const diffDays = Math.floor(diffHrs / 24);
+      if (diffDays === 1) return 'yesterday';
+      if (diffDays < 30) return `${diffDays} days ago`;
+      return new Date(isoStr).toLocaleDateString();
+    } catch {
+      return 'recently';
+    }
+  };
+
+  const getPlatformIcon = (platform) => {
+    const p = (platform || '').toLowerCase();
+    if (p.includes('youtube')) {
+      return (
+        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-[#ff0000]">
+          <svg className="text-[14px] text-default-font" width="1em" height="1em" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z" fill="rgb(255 255 255)" />
+          </svg>
+        </div>
+      );
+    }
+    if (p.includes('tiktok')) {
+      return (
+        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-neutral-900">
+          <span className="text-body-bold font-body-bold text-neutral-0">♪</span>
+        </div>
+      );
+    }
+    if (p.includes('twitter') || p === 'x') {
+      return (
+        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-neutral-900">
+          <span className="text-body-bold font-body-bold text-neutral-0">𝕏</span>
+        </div>
+      );
+    }
+    return (
+      <div className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-[#e1306c]">
+        <svg className="text-[16px] text-default-font" width="1em" height="1em" viewBox="0 0 24 24">
+          <rect
+            x="3"
+            y="3"
+            width="18"
+            height="18"
+            rx="5"
+            ry="5"
+            fill="none"
+            stroke="rgb(255 255 255)"
+            strokeWidth="2"
+            strokeLinecap="butt"
+            strokeLinejoin="miter"
+          />
+          <ellipse
+            cx="12"
+            cy="12"
+            rx="4"
+            ry="4"
+            fill="none"
+            stroke="rgb(255 255 255)"
+            strokeWidth="2"
+            strokeLinecap="butt"
+            strokeLinejoin="miter"
+          />
+          <ellipse cx="17.5" cy="6.5" rx="1.2" ry="1.2" fill="rgb(255 255 255)" />
+        </svg>
+      </div>
+    );
+  };
+
+  const getStatusBadge = (st) => {
+    switch (st) {
+      case 'approved':
+        return (
+          <span className="text-caption-bold font-caption-bold text-success-800 rounded-full bg-success-100 px-2 py-0.5">
+            Approved
+          </span>
+        );
+      case 'under_review':
+        return (
+          <span className="text-caption-bold font-caption-bold text-brand-700 rounded-full bg-brand-50 px-2 py-0.5 border border-brand-200">
+            In review
+          </span>
+        );
+      case 'rejected':
+        return (
+          <span className="text-caption-bold font-caption-bold text-error-800 rounded-full bg-error-100 px-2 py-0.5">
+            Rejected
+          </span>
+        );
+      default:
+        return (
+          <span className="text-caption-bold font-caption-bold text-warning-800 rounded-full bg-warning-100 px-2 py-0.5">
+            Pending
+          </span>
+        );
+    }
+  };
+
+  const platformDisplayName =
+    (submission.platform || '').toLowerCase() === 'twitter'
+      ? 'Twitter / X'
+      : (submission.platform || 'Platform').charAt(0).toUpperCase() +
+        (submission.platform || 'Platform').slice(1);
+
+  const cleanUsername = (submission.telegram_username || '').replace(/^@/, '');
+  const usernameDisplay = cleanUsername ? `@${cleanUsername}` : `Chat ID: ${submission.chat_id}`;
+
+  // Bot preview message based on current status and values
+  let botPreviewText = `✅ Your ${platformDisplayName} clip was approved: ${currentViewsNum.toLocaleString()} views → ${paymentAmount} ETB.`;
+  if (status === 'under_review') {
+    botPreviewText = `👀 Your ${platformDisplayName} clip is now under review.`;
+  } else if (status === 'rejected') {
+    botPreviewText = `❌ Your ${platformDisplayName} clip was reviewed and could not be approved.`;
+  } else if (status === 'pending') {
+    botPreviewText = `⏳ Your ${platformDisplayName} clip is marked as pending review.`;
+  }
+
   return (
-    <div className="fixed inset-0 z-50 bg-neutral-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white border border-neutral-200 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in max-h-[92vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 bg-neutral-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="flex w-full max-w-[560px] flex-col items-start overflow-hidden rounded-lg bg-default-background shadow-md border border-neutral-border animate-fade-in max-h-[95vh] overflow-y-auto">
         {/* Header */}
-        <div className="px-6 py-4 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 border border-brand-200 flex items-center justify-center">
-              <PenSquare className="w-4 h-4" />
+        <div className="flex w-full items-start gap-3 px-6 pt-5 pb-4">
+          <div className="flex flex-col items-start gap-1 grow">
+            <div className="flex w-full items-center gap-2">
+              <span className="text-heading-3 font-heading-3 text-default-font">
+                Submission #{submission.id}
+              </span>
+              {getStatusBadge(status)}
             </div>
-            <div>
-              <h3 className="font-bold text-neutral-900 text-base">Edit Submission &amp; Views</h3>
-              <p className="text-xs text-neutral-500">
-                Submission #{submission.id} • Clipper: {submission.telegram_username}
-              </p>
-            </div>
+            <span className="w-full text-body font-body text-subtext-color">
+              {usernameDisplay} · submitted {formatRelativeTime(submission.submitted_at)}
+            </span>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white hover:bg-neutral-100 text-neutral-500 hover:text-neutral-700 border border-neutral-200 transition flex items-center justify-center"
+            className="flex h-8 w-8 flex-none items-center justify-center rounded-sm hover:bg-neutral-100 transition cursor-pointer"
+            title="Close"
           >
-            <X className="w-4 h-4" />
+            <svg
+              className="text-[16px] text-default-font"
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M18 6 6 18M6 6l12 12"
+                fill="none"
+                stroke="rgb(107 114 128)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="miter"
+              />
+            </svg>
           </button>
         </div>
 
-        {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
-          {/* Submission Info Box */}
-          <div className="p-3.5 rounded-xl bg-neutral-50 border border-neutral-200 space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-500">Account:</span>
-              <span className="font-medium text-neutral-800">
-                {(submission.platform || '').toUpperCase()} - {submission.handle || 'No handle'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-neutral-500 shrink-0">Direct Video Link:</span>
+        {/* Platform & Clip Link Strip */}
+        <div className="flex items-center gap-3 rounded-md border border-solid border-neutral-border px-3 py-2.5 self-stretch mx-6">
+          {getPlatformIcon(submission.platform)}
+          <div className="flex min-w-[0px] flex-col items-start grow">
+            <span className="w-full text-body-bold font-body-bold text-default-font">
+              {platformDisplayName} · {submission.handle || cleanUsername || 'Account'}
+            </span>
+            {isEditingLink ? (
+              <input
+                type="url"
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                placeholder="Video link URL"
+                className="w-full text-monospace-caption font-monospace-caption text-brand-700 bg-neutral-50 px-2 py-0.5 rounded border border-neutral-300 outline-none focus:border-brand-primary"
+              />
+            ) : (
               <a
-                href={submission.link}
+                href={link}
                 target="_blank"
                 rel="noreferrer"
-                className="font-mono text-brand-600 hover:underline flex items-center gap-1 truncate max-w-[240px]"
+                className="line-clamp-1 w-full text-monospace-caption font-monospace-caption text-brand-700 break-all hover:underline"
+                title={link}
               >
-                <span>{submission.link}</span>
-                <ExternalLink className="w-3 h-3 shrink-0" />
+                {link || 'No video link'}
               </a>
-            </div>
+            )}
           </div>
 
-          {/* Active Platform Rate & Auto-Calc Helper */}
-          <div className="flex items-center justify-between p-2.5 rounded-xl bg-brand-50/70 border border-brand-200 text-xs">
-            <div className="flex items-center gap-1.5 font-medium text-brand-900">
-              <span className="text-neutral-600">Rate for {(submission.platform || 'Platform').toUpperCase()}:</span>
-              <span className="font-bold text-brand-700 font-mono">{activeRate} ETB</span>
-              <span className="text-[11px] text-neutral-500">/ 1k views</span>
-            </div>
-            <button
-              type="button"
-              onClick={handleAutoCalculate}
-              className="px-2.5 py-1 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold text-[11px] transition shadow-xs flex items-center gap-1"
-              title="Auto-calculate payout based on views and platform rate"
+          {/* Toggle Edit Link */}
+          <button
+            type="button"
+            onClick={() => setIsEditingLink(!isEditingLink)}
+            className={`flex h-8 w-8 flex-none items-center justify-center rounded-sm transition cursor-pointer ${
+              isEditingLink ? 'bg-brand-50 text-brand-700' : 'hover:bg-neutral-100'
+            }`}
+            title={isEditingLink ? 'Finish editing link' : 'Edit link URL'}
+          >
+            <svg
+              className="text-[15px] text-default-font"
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
             >
-              <Zap className="w-3 h-3" />
-              <span>Auto-Calculate</span>
-            </button>
-          </div>
+              <path
+                d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"
+                fill="none"
+                stroke="rgb(107 114 128)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
 
-          {/* Views & Payment Inputs */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-neutral-700 mb-1.5 flex items-center gap-1">
-                <Eye className="w-3.5 h-3.5 text-brand-500" /> Views Achieved
-              </label>
+          {/* External Link */}
+          <a
+            href={link}
+            target="_blank"
+            rel="noreferrer"
+            className="flex h-8 w-8 flex-none items-center justify-center rounded-sm hover:bg-neutral-100 transition cursor-pointer"
+            title="Open video link in new tab"
+          >
+            <svg
+              className="text-[15px] text-default-font"
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M15 3h6v6m-11 5L21 3m-3 10v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+                fill="none"
+                stroke="rgb(107 114 128)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </a>
+        </div>
+
+        {/* Body Fields */}
+        <div className="flex w-full flex-col items-start gap-5 px-6 py-5">
+          {/* Views & Payout Grid */}
+          <div className="w-full items-start gap-4 grid grid-cols-2">
+            {/* Views */}
+            <div className="flex flex-col items-start gap-1.5 self-stretch">
+              <span className="w-full text-caption-bold font-caption-bold text-neutral-700">
+                Views
+              </span>
               <input
+                className="w-full rounded-sm border border-solid border-neutral-300 px-3 py-2 text-monospace-body font-monospace-body text-default-font outline-none placeholder:text-[#a3a3a3] focus:border-brand-primary"
+                placeholder="0"
+                value={views}
+                onChange={(e) => handleViewsChange(e.target.value)}
                 type="number"
                 min="0"
                 step="1"
-                required
-                value={views}
-                onChange={(e) => handleViewsChange(e.target.value)}
-                placeholder="e.g. 25000"
-                className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm text-neutral-900 focus:outline-none focus:border-brand-500 focus:bg-white font-mono"
               />
-              <p className="text-[11px] text-neutral-500 mt-1">Manual views count</p>
+              <span className="w-full text-caption font-caption text-subtext-color">
+                Counted manually from the clip
+              </span>
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-semibold text-neutral-700 flex items-center gap-1">
-                  <DollarSign className="w-3.5 h-3.5 text-paid-500" /> Payment (ETB)
-                </label>
-              </div>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-xs font-bold">ETB</span>
+            {/* Payout */}
+            <div className="flex flex-col items-start gap-1.5 self-stretch">
+              <span className="w-full text-caption-bold font-caption-bold text-neutral-700">
+                Payout
+              </span>
+              <div className="flex w-full items-center overflow-hidden rounded-sm border border-solid border-neutral-300 focus-within:border-brand-primary">
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  required
+                  className="w-0 flex-none px-3 py-2 text-monospace-body font-monospace-body text-default-font outline-none placeholder:text-[#a3a3a3] min-w-0 grow bg-transparent"
+                  placeholder="0.00"
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
-                  placeholder="e.g. 50.00"
-                  className="w-full pl-12 pr-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm text-neutral-900 focus:outline-none focus:border-brand-500 focus:bg-white font-mono"
+                  type="text"
                 />
+                <span className="text-caption font-caption text-subtext-color pr-3 select-none">
+                  ETB
+                </span>
               </div>
-              <p className="text-[11px] text-neutral-500 mt-1">Paid to clipper in ETB</p>
-            </div>
-          </div>
-
-          {/* Status Selection */}
-          <div>
-            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">Submission Status</label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { val: 'pending', label: 'Pending', color: 'text-warning-800', activeBg: 'border-warning-400 bg-warning-50' },
-                { val: 'under_review', label: 'Review', color: 'text-brand-800', activeBg: 'border-brand-400 bg-brand-50' },
-                { val: 'approved', label: 'Approved', color: 'text-success-800', activeBg: 'border-success-400 bg-success-50' },
-                { val: 'rejected', label: 'Rejected', color: 'text-error-800', activeBg: 'border-error-400 bg-error-50' },
-              ].map((s) => (
-                <label
-                  key={s.val}
-                  className={`flex items-center gap-2 p-2 rounded-xl bg-neutral-50 border cursor-pointer text-xs transition ${
-                    status === s.val ? s.activeBg : 'border-neutral-200 hover:border-neutral-300'
-                  }`}
+              <div className="flex w-full items-center gap-1">
+                <svg
+                  className="text-[12px] text-default-font shrink-0"
+                  width="1em"
+                  height="1em"
+                  viewBox="0 0 24 24"
                 >
-                  <input
-                    type="radio"
-                    name="modal-status"
-                    value={s.val}
-                    checked={status === s.val}
-                    onChange={() => setStatus(s.val)}
-                    className="text-brand-500 focus:ring-brand-500"
+                  <path
+                    d="M13 2 3 14h9l-1 8 10-12h-9z"
+                    fill="none"
+                    stroke="rgb(20 121 168)"
+                    strokeWidth="2"
+                    strokeLinecap="butt"
+                    strokeLinejoin="round"
                   />
-                  <span className={`font-semibold ${s.color}`}>{s.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Edit Link & Caption */}
-          <div className="space-y-3 pt-1">
-            <div>
-              <label className="block text-xs font-semibold text-neutral-700 mb-1">Edit Link</label>
-              <input
-                type="url"
-                required
-                value={link}
-                onChange={(e) => setLink(e.target.value)}
-                className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:border-brand-500 focus:bg-white font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-neutral-700 mb-1">Edit Caption</label>
-              <textarea
-                rows={2}
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                placeholder="Video caption"
-                className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:border-brand-500 focus:bg-white italic"
-              ></textarea>
-            </div>
-          </div>
-
-          {/* Telegram DM Toggle */}
-          <div className="p-3 rounded-xl bg-brand-50 border border-brand-200 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <Send className="w-5 h-5 text-brand-500" />
-              <div>
-                <span className="text-xs font-semibold text-neutral-900 block">Notify Clipper on Telegram</span>
-                <span className="text-[11px] text-neutral-500">Sends instant bot DM with views, payment &amp; status</span>
+                </svg>
+                <span className="text-caption font-caption text-subtext-color truncate">
+                  {currentViewsNum.toLocaleString()} × {activeRate} ETB / 1K =
+                </span>
+                {isMatchingPayout ? (
+                  <span className="text-caption-bold font-caption-bold text-brand-700 whitespace-nowrap">
+                    {expectedPayoutStr} · Matches
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSyncPayout}
+                    className="text-caption-bold font-caption-bold text-warning-800 hover:text-warning-900 underline whitespace-nowrap cursor-pointer"
+                    title="Click to apply auto-calculated rate"
+                  >
+                    {expectedPayoutStr} · Apply
+                  </button>
+                )}
               </div>
             </div>
-            <input
-              type="checkbox"
-              checked={notifyUser}
-              onChange={(e) => setNotifyUser(e.target.checked)}
-              className="w-4 h-4 rounded bg-white border-neutral-300 text-brand-500 focus:ring-brand-500 cursor-pointer"
+          </div>
+
+          {/* Status Selector */}
+          <div className="flex w-full flex-col items-start gap-1.5">
+            <span className="w-full text-caption-bold font-caption-bold text-neutral-700">
+              Status
+            </span>
+            <div className="flex w-full items-start gap-1 rounded-md bg-neutral-100 px-1 py-1">
+              {/* Pending */}
+              <button
+                type="button"
+                onClick={() => setStatus('pending')}
+                className={`flex items-center justify-center gap-1.5 self-stretch rounded-sm py-1.5 grow transition cursor-pointer ${
+                  status === 'pending' ? 'bg-default-background shadow-sm' : 'hover:bg-neutral-200/50'
+                }`}
+              >
+                <div className="flex h-2 w-2 flex-none items-start rounded-full bg-warning-500" />
+                <span
+                  className={
+                    status === 'pending'
+                      ? 'text-caption-bold font-caption-bold text-warning-800'
+                      : 'text-caption font-caption text-subtext-color'
+                  }
+                >
+                  Pending
+                </span>
+              </button>
+
+              {/* In review */}
+              <button
+                type="button"
+                onClick={() => setStatus('under_review')}
+                className={`flex items-center justify-center gap-1.5 self-stretch rounded-sm py-1.5 grow transition cursor-pointer ${
+                  status === 'under_review' ? 'bg-default-background shadow-sm' : 'hover:bg-neutral-200/50'
+                }`}
+              >
+                <div className="flex h-2 w-2 flex-none items-start rounded-full bg-brand-primary" />
+                <span
+                  className={
+                    status === 'under_review'
+                      ? 'text-caption-bold font-caption-bold text-brand-700'
+                      : 'text-caption font-caption text-subtext-color'
+                  }
+                >
+                  In review
+                </span>
+              </button>
+
+              {/* Approved */}
+              <button
+                type="button"
+                onClick={() => setStatus('approved')}
+                className={`flex items-center justify-center gap-1.5 self-stretch rounded-sm py-1.5 grow transition cursor-pointer ${
+                  status === 'approved' ? 'bg-default-background shadow-sm' : 'hover:bg-neutral-200/50'
+                }`}
+              >
+                <div className="flex h-2 w-2 flex-none items-start rounded-full bg-success-600" />
+                <span
+                  className={
+                    status === 'approved'
+                      ? 'text-caption-bold font-caption-bold text-success-800'
+                      : 'text-caption font-caption text-subtext-color'
+                  }
+                >
+                  Approved
+                </span>
+              </button>
+
+              {/* Rejected */}
+              <button
+                type="button"
+                onClick={() => setStatus('rejected')}
+                className={`flex items-center justify-center gap-1.5 self-stretch rounded-sm py-1.5 grow transition cursor-pointer ${
+                  status === 'rejected' ? 'bg-default-background shadow-sm' : 'hover:bg-neutral-200/50'
+                }`}
+              >
+                <div className="flex h-2 w-2 flex-none items-start rounded-full bg-error-500" />
+                <span
+                  className={
+                    status === 'rejected'
+                      ? 'text-caption-bold font-caption-bold text-error-800'
+                      : 'text-caption font-caption text-subtext-color'
+                  }
+                >
+                  Rejected
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Caption */}
+          <div className="flex w-full flex-col items-start gap-1.5">
+            <div className="flex w-full items-center justify-between">
+              <span className="text-caption-bold font-caption-bold text-neutral-700">
+                Caption
+              </span>
+              <span className="text-caption font-caption text-neutral-400">
+                Optional
+              </span>
+            </div>
+            <textarea
+              className="h-16 w-full flex-none rounded-sm border border-solid border-neutral-300 px-3 py-2 text-body font-body text-default-font outline-none placeholder:text-neutral-400 focus:border-brand-primary resize-none"
+              placeholder="Caption the clipper posted with this video"
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
             />
           </div>
 
-          {/* Footer Actions */}
-          <div className="flex items-center justify-between pt-3 border-t border-neutral-200">
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="px-3 py-2 rounded-xl bg-error-50 hover:bg-error-100 text-error-700 text-xs font-medium border border-error-200 transition flex items-center gap-1.5"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Delete</span>
-            </button>
-
-            <div className="flex items-center gap-2">
+          {/* Telegram Notification Card */}
+          <div className="flex w-full flex-col items-start gap-3 rounded-md border border-solid border-neutral-border px-3 py-3">
+            <div className="flex w-full items-center gap-3">
+              <div className="flex flex-col items-start grow">
+                <span className="w-full text-body-bold font-body-bold text-default-font">
+                  Notify {usernameDisplay} on Telegram
+                </span>
+                <span className="w-full text-caption font-caption text-subtext-color">
+                  The bot DMs them the result when you save
+                </span>
+              </div>
               <button
                 type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-medium transition"
+                onClick={() => setNotifyUser(!notifyUser)}
+                className={`flex h-5 w-9 flex-none items-center rounded-full px-0.5 py-0.5 transition cursor-pointer ${
+                  notifyUser ? 'bg-brand-primary justify-end' : 'bg-neutral-300 justify-start'
+                }`}
+                title={notifyUser ? 'Notification enabled' : 'Notification disabled'}
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-5 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold shadow-md shadow-brand-500/20 transition flex items-center gap-1.5"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>Save Submission</span>
+                <div className="flex h-4 w-4 flex-none items-start rounded-full bg-default-background shadow-xs" />
               </button>
             </div>
+
+            {notifyUser && (
+              <div className="flex w-full flex-col items-start gap-1 rounded-md bg-brand-50 px-2.5 py-2.5 animate-fade-in">
+                <div className="flex flex-col items-start gap-1 bg-default-background px-3 py-2 shadow-sm w-fit max-w-[90%] rounded-lg rounded-tl-[2px]">
+                  <span className="w-full text-body font-body text-default-font">
+                    {botPreviewText}
+                  </span>
+                  <span className="w-full text-caption font-caption text-neutral-400 text-right">
+                    @clipp_bot
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
-        </form>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="flex w-full items-center gap-2 border-t border-solid border-neutral-border bg-neutral-50 px-6 py-3">
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="flex items-center gap-1.5 rounded-sm px-2 py-1.5 hover:bg-error-100 transition cursor-pointer"
+            title="Delete this submission"
+          >
+            <svg
+              className="text-[14px] text-default-font"
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M3 6h18m-2 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                fill="none"
+                stroke="rgb(220 38 38)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="text-body font-body text-error-600">Delete</span>
+          </button>
+
+          <div className="flex items-start grow" />
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center rounded-sm border border-solid border-neutral-border bg-default-background px-3 py-1.5 hover:bg-neutral-50 transition cursor-pointer"
+          >
+            <span className="text-body font-body text-neutral-700">Cancel</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-sm bg-brand-primary px-3 py-1.5 hover:bg-brand-600 transition cursor-pointer disabled:opacity-50"
+          >
+            <svg
+              className="text-[14px] text-default-font"
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M22 2 11 13M22 2l-7 20-4-9-9-4z"
+                fill="none"
+                stroke="rgb(255 255 255)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="text-body-bold font-body-bold text-neutral-0">
+              {loading ? 'Saving...' : notifyUser ? 'Save & notify' : 'Save changes'}
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   );
