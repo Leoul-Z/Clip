@@ -38,15 +38,15 @@ export default function EditUserModal({ isOpen, user, onClose, onSave, onDelete 
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="glass-panel bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in">
-        <div className="px-6 py-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between">
+      <div className="glass-panel bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in">
+        <div className="px-6 py-4 bg-neutral-850 border-b border-neutral-800 flex items-center justify-between">
           <h3 className="font-bold text-white text-base flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-emerald-400" />
+            <CreditCard className="w-4 h-4 text-brand-500" />
             <span>Edit Clipper Data</span>
           </h3>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition flex items-center justify-center"
+            className="w-8 h-8 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white transition flex items-center justify-center"
           >
             <X className="w-4 h-4" />
           </button>
@@ -54,34 +54,34 @@ export default function EditUserModal({ isOpen, user, onClose, onSave, onDelete 
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Telegram Username</label>
+            <label className="block text-xs font-semibold text-neutral-300 mb-1">Telegram Username</label>
             <input
               type="text"
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="@username"
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-indigo-500 font-mono"
+              className="w-full px-3.5 py-2.5 bg-neutral-950 border border-neutral-800 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500 font-mono"
             />
-            <p className="text-[11px] text-slate-500 mt-1">Locked Telegram username for this clipper</p>
+            <p className="text-[11px] text-neutral-500 mt-1">Locked Telegram username for this clipper</p>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Bank / Payment Details</label>
+            <label className="block text-xs font-semibold text-neutral-300 mb-1">Bank / Payment Details</label>
             <textarea
               rows={3}
               value={paymentDetails}
               onChange={(e) => setPaymentDetails(e.target.value)}
               placeholder="e.g. Commercial Bank of Ethiopia (CBE) 100012345678"
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-indigo-500 font-mono text-xs"
+              className="w-full px-3.5 py-2.5 bg-neutral-950 border border-neutral-800 rounded-xl text-sm text-white focus:outline-none focus:border-brand-500 font-mono text-xs"
             ></textarea>
           </div>
 
-          <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+          <div className="flex items-center justify-between pt-3 border-t border-neutral-800">
             <button
               type="button"
               onClick={handleDelete}
-              className="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-medium border border-rose-500/20 transition flex items-center gap-1.5"
+              className="px-3 py-2 rounded-xl bg-error-500/10 hover:bg-error-500/20 text-error-500 text-xs font-medium border border-error-500/20 transition flex items-center gap-1.5"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Delete User</span>
@@ -91,14 +91,14 @@ export default function EditUserModal({ isOpen, user, onClose, onSave, onDelete 
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition"
+                className="px-4 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-medium transition"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/30 transition flex items-center gap-1.5"
+                className="px-5 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold shadow-lg shadow-brand-500/25 transition flex items-center gap-1.5"
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>Save Clipper</span>

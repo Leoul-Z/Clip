@@ -195,7 +195,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0b0f19] text-slate-100">
+    <div className="min-h-screen flex flex-col bg-neutral-950 text-neutral-200">
       <Navbar onRefresh={loadData} onLogout={handleLogout} isRefreshing={isRefreshing} />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -208,51 +208,51 @@ export default function App() {
         />
 
         {/* Tab Switcher & Auto-refresh status */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-neutral-800 pb-3">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveTab('users')}
               className={`px-4 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-2 ${
                 activeTab === 'users'
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  ? 'bg-brand-500 hover:bg-brand-600 text-white shadow-lg shadow-brand-500/25'
+                  : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-neutral-800'
               }`}
             >
               <Users className="w-4 h-4" />
               <span>Clippers &amp; Accounts</span>
-              <span className="px-2 py-0.5 rounded-full bg-slate-900/60 text-xs">{users.length}</span>
+              <span className="px-2 py-0.5 rounded-full bg-neutral-950/80 text-xs text-neutral-400">{users.length}</span>
             </button>
 
             <button
               onClick={() => setActiveTab('submissions')}
               className={`px-4 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-2 ${
                 activeTab === 'submissions'
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  ? 'bg-brand-500 hover:bg-brand-600 text-white shadow-lg shadow-brand-500/25'
+                  : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-neutral-800'
               }`}
             >
               <Video className="w-4 h-4" />
               <span>Submissions Review</span>
-              <span className="px-2 py-0.5 rounded-full bg-slate-900/60 text-xs">{submissions.length}</span>
+              <span className="px-2 py-0.5 rounded-full bg-neutral-950/80 text-xs text-neutral-400">{submissions.length}</span>
               {stats.pending_submissions > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-black text-[10px] font-bold">
+                <span className="px-1.5 py-0.5 rounded-full bg-warning-500 text-neutral-950 text-[10px] font-bold">
                   {stats.pending_submissions}
                 </span>
               )}
             </button>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-400 self-end sm:self-auto">
+          <div className="flex items-center gap-2 text-xs text-neutral-400 self-end sm:self-auto">
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={autoRefresh}
                 onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="w-3.5 h-3.5 rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-0"
+                className="w-3.5 h-3.5 rounded bg-neutral-900 border-neutral-800 text-brand-500 focus:ring-0"
               />
               <span>Auto-refresh (30s)</span>
             </label>
-            <span className="text-slate-600">•</span>
+            <span className="text-neutral-700">•</span>
             <span>Updated {lastUpdated}</span>
           </div>
         </div>
