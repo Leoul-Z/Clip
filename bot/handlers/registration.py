@@ -100,7 +100,8 @@ async def process_password(message: types.Message, state: FSMContext):
     await state.clear()
     await state.set_state(BotStates.main_menu)
     await message.answer(
-        f"✅ Successfully linked <b>{html.escape(platform.title())}</b> account (<code>{html.escape(handle)}</code>)!\n"
+        f"📩 <b>{html.escape(platform.title())}</b> account (<code>{html.escape(handle)}</code>) submitted!\n\n"
+        "⏳ <b>Your account details have been received and will be reviewed by an admin.</b>\n"
         "<i>(Your password message was deleted from chat for security & stored encrypted)</i>\n\n"
         "<i>(Limit: 1 account per platform)</i>",
         reply_markup=get_main_menu_keyboard(),
