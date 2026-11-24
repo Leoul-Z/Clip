@@ -2,58 +2,61 @@ import React from 'react';
 
 export default function Navbar({ onRefresh, onLogout, onOpenBroadcast, onOpenRates, isRefreshing }) {
   return (
-    <header className="flex w-full items-center gap-4 border-b border-solid border-neutral-border bg-default-background px-4 sm:px-12 lg:px-20 py-3 sticky top-0 z-40">
-      <div className="flex h-9 w-9 flex-none items-center justify-center rounded-md bg-brand-primary shadow-xs">
-        <svg
-          className="text-[18px] text-white"
-          width="1.1em"
-          height="1.1em"
-          viewBox="0 0 24 24"
-        >
-          <ellipse
-            cx="6"
-            cy="6"
-            rx="3"
-            ry="3"
-            fill="none"
-            stroke="rgb(255 255 255)"
-            strokeWidth="2"
-            strokeLinecap="butt"
-            strokeLinejoin="miter"
-          />
-          <ellipse
-            cx="6"
-            cy="18"
-            rx="3"
-            ry="3"
-            fill="none"
-            stroke="rgb(255 255 255)"
-            strokeWidth="2"
-            strokeLinecap="butt"
-            strokeLinejoin="miter"
-          />
-          <path
-            d="M20 4 8.1 15.9m6.4-1.4L20 20M8.1 8.1 12 12"
-            fill="none"
-            stroke="rgb(255 255 255)"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="miter"
-          />
-        </svg>
+    <header className="flex w-full items-center justify-between gap-2 sm:gap-4 border-b border-solid border-neutral-border bg-default-background px-4 sm:px-8 lg:px-20 py-3 sticky top-0 z-40">
+      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+        <div className="flex h-9 w-9 flex-none items-center justify-center rounded-md bg-brand-primary shadow-xs">
+          <svg
+            className="text-[18px] text-white"
+            width="1.1em"
+            height="1.1em"
+            viewBox="0 0 24 24"
+          >
+            <ellipse
+              cx="6"
+              cy="6"
+              rx="3"
+              ry="3"
+              fill="none"
+              stroke="rgb(255 255 255)"
+              strokeWidth="2"
+              strokeLinecap="butt"
+              strokeLinejoin="miter"
+            />
+            <ellipse
+              cx="6"
+              cy="18"
+              rx="3"
+              ry="3"
+              fill="none"
+              stroke="rgb(255 255 255)"
+              strokeWidth="2"
+              strokeLinecap="butt"
+              strokeLinejoin="miter"
+            />
+            <path
+              d="M20 4 8.1 15.9m6.4-1.4L20 20M8.1 8.1 12 12"
+              fill="none"
+              stroke="rgb(255 255 255)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="miter"
+            />
+          </svg>
+        </div>
+        <div className="flex flex-col items-start min-w-0">
+          <span className="text-heading-3 font-heading-3 text-default-font truncate">
+            Clipper Admin
+          </span>
+          <span className="hidden sm:block text-caption font-caption text-subtext-color truncate">
+            Telegram campaign management &amp; payouts
+          </span>
+        </div>
       </div>
-      <div className="flex flex-col items-start grow">
-        <span className="w-full text-heading-3 font-heading-3 text-default-font">
-          Clipper Admin
-        </span>
-        <span className="w-full text-caption font-caption text-subtext-color">
-          Telegram campaign management &amp; payouts
-        </span>
-      </div>
-      <div className="flex items-center gap-1 sm:gap-1.5">
+
+      <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
         <button
           onClick={onOpenRates}
-          className="flex items-center gap-1.5 rounded-sm px-3 py-1.5 hover:bg-neutral-100 transition cursor-pointer text-neutral-600 hover:text-neutral-900"
+          className="flex items-center gap-1.5 rounded-sm px-2.5 sm:px-3 py-1.5 hover:bg-neutral-100 transition cursor-pointer text-neutral-600 hover:text-neutral-900"
           title="Configure platform payout rates"
         >
           <svg
@@ -71,7 +74,7 @@ export default function Navbar({ onRefresh, onLogout, onOpenBroadcast, onOpenRat
               strokeLinejoin="miter"
             />
           </svg>
-          <span className="text-body font-body text-neutral-600 hidden sm:inline">
+          <span className="text-body font-body text-neutral-600 hidden md:inline">
             Pricing rates
           </span>
         </button>
@@ -79,7 +82,7 @@ export default function Navbar({ onRefresh, onLogout, onOpenBroadcast, onOpenRat
         <button
           onClick={onRefresh}
           disabled={isRefreshing}
-          className="flex items-center gap-1.5 rounded-sm px-3 py-1.5 hover:bg-neutral-100 transition cursor-pointer text-neutral-600 hover:text-neutral-900"
+          className="flex items-center gap-1.5 rounded-sm px-2.5 sm:px-3 py-1.5 hover:bg-neutral-100 transition cursor-pointer text-neutral-600 hover:text-neutral-900"
           title="Refresh dashboard data"
         >
           <svg
@@ -97,14 +100,14 @@ export default function Navbar({ onRefresh, onLogout, onOpenBroadcast, onOpenRat
               strokeLinejoin="round"
             />
           </svg>
-          <span className="text-body font-body text-neutral-600 hidden sm:inline">
+          <span className="text-body font-body text-neutral-600 hidden md:inline">
             Refresh
           </span>
         </button>
 
         <button
           onClick={onLogout}
-          className="flex items-center gap-1.5 rounded-sm px-3 py-1.5 hover:bg-neutral-100 transition cursor-pointer text-neutral-600 hover:text-neutral-900"
+          className="flex items-center gap-1.5 rounded-sm px-2.5 sm:px-3 py-1.5 hover:bg-neutral-100 transition cursor-pointer text-neutral-600 hover:text-neutral-900"
           title="Log out of session"
         >
           <svg
@@ -122,14 +125,14 @@ export default function Navbar({ onRefresh, onLogout, onOpenBroadcast, onOpenRat
               strokeLinejoin="round"
             />
           </svg>
-          <span className="text-body font-body text-neutral-600 hidden sm:inline">
+          <span className="text-body font-body text-neutral-600 hidden md:inline">
             Log out
           </span>
         </button>
 
         <button
           onClick={onOpenBroadcast}
-          className="flex items-center gap-1.5 rounded-sm bg-brand-primary px-3 py-1.5 ml-1 sm:ml-2 hover:bg-brand-600 transition cursor-pointer text-white shadow-xs"
+          className="flex items-center gap-1.5 rounded-sm bg-brand-primary px-2.5 sm:px-3 py-1.5 ml-1 sm:ml-2 hover:bg-brand-600 transition cursor-pointer text-white shadow-xs"
           title="Broadcast message to all clippers via Telegram bot"
         >
           <svg
@@ -147,7 +150,7 @@ export default function Navbar({ onRefresh, onLogout, onOpenBroadcast, onOpenRat
               strokeLinejoin="round"
             />
           </svg>
-          <span className="text-body-bold font-body-bold text-white">
+          <span className="text-body-bold font-body-bold text-white hidden sm:inline">
             Broadcast DM
           </span>
         </button>

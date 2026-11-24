@@ -267,7 +267,7 @@ export default function App() {
         isRefreshing={isRefreshing}
       />
 
-      <main className="flex w-full flex-col items-start gap-5 px-4 sm:px-12 lg:px-20 py-6">
+      <main className="flex w-full flex-col items-start gap-4 sm:gap-5 px-3 sm:px-8 lg:px-20 py-4 sm:py-6">
         {/* KPI Metrics Banner */}
         <StatsCards
           stats={stats}
@@ -278,11 +278,11 @@ export default function App() {
         />
 
         {/* Tab Bar matching ClipperAdminHub mockup */}
-        <div className="flex w-full items-center justify-between border-b border-solid border-neutral-border pb-px">
-          <div className="flex items-center gap-6">
+        <div className="flex w-full flex-col sm:flex-row sm:items-center justify-between border-b border-solid border-neutral-border pb-px gap-2.5 sm:gap-4">
+          <div className="flex items-center gap-4 sm:gap-6 overflow-x-auto scrollbar-none">
             <div
               onClick={() => setActiveTab('users')}
-              className={`flex items-center gap-2 pb-3 -mb-px cursor-pointer transition ${
+              className={`flex items-center gap-2 pb-3 -mb-px cursor-pointer transition shrink-0 ${
                 activeTab === 'users'
                   ? 'border-b-2 border-solid border-brand-primary'
                   : 'hover:text-default-font'
@@ -316,7 +316,7 @@ export default function App() {
 
             <div
               onClick={() => setActiveTab('submissions')}
-              className={`flex items-center gap-2 pb-3 -mb-px cursor-pointer transition ${
+              className={`flex items-center gap-2 pb-3 -mb-px cursor-pointer transition shrink-0 ${
                 activeTab === 'submissions'
                   ? 'border-b-2 border-solid border-brand-primary'
                   : 'hover:text-default-font'
@@ -353,14 +353,14 @@ export default function App() {
                 />
               )}
               {selectedUserForSubmissions && (
-                <span className="px-2 py-0.5 rounded-full bg-brand-50 text-brand-primary text-caption font-caption border border-brand-200">
+                <span className="px-2 py-0.5 rounded-full bg-brand-50 text-brand-primary text-caption font-caption border border-brand-200 truncate max-w-[160px] sm:max-w-none">
                   Filtered: {selectedUserForSubmissions.telegram_username || selectedUserForSubmissions.chat_id}
                 </span>
               )}
             </div>
           </div>
 
-          <div className="flex items-center gap-2 pb-3">
+          <div className="flex items-center gap-2 pb-2 sm:pb-3 self-end sm:self-auto shrink-0">
             <div
               className={`h-2 w-2 rounded-full ${
                 autoRefresh ? 'bg-green-500 animate-pulse' : 'bg-neutral-300'

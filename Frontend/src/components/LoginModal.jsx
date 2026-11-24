@@ -63,21 +63,21 @@ export default function LoginModal({ isOpen, onLogin, onChangePassword }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-neutral-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-      <div className="flex w-full max-w-[420px] flex-col items-start overflow-hidden rounded-lg bg-default-background shadow-md border border-neutral-border animate-fade-in">
+    <div className="fixed inset-0 z-50 bg-neutral-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in overflow-y-auto">
+      <div className="flex w-full max-w-[420px] flex-col items-start overflow-hidden rounded-lg bg-default-background shadow-md border border-neutral-border animate-fade-in my-auto">
         {mode === 'login' ? (
           /* LOGIN FORM */
-          <div className="flex w-full flex-col items-start p-6 sm:p-7">
+          <div className="flex w-full flex-col items-start p-5 sm:p-7">
             {/* Header */}
             <div className="flex items-center gap-3 mb-4">
               <div className="flex h-10 w-10 flex-none items-center justify-center rounded-md bg-brand-primary text-white shadow-xs">
                 <Lock className="w-5 h-5" />
               </div>
-              <div className="flex flex-col items-start">
-                <span className="text-heading-3 font-heading-3 text-default-font">
+              <div className="flex flex-col items-start min-w-0">
+                <span className="text-heading-3 font-heading-3 text-default-font truncate">
                   Admin Portal Access
                 </span>
-                <span className="text-caption font-caption text-subtext-color">
+                <span className="text-caption font-caption text-subtext-color truncate">
                   Enter master password to unlock
                 </span>
               </div>
@@ -105,7 +105,7 @@ export default function LoginModal({ isOpen, onLogin, onChangePassword }) {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full px-3 py-2 text-body font-body text-default-font outline-none placeholder:text-[#a3a3a3] bg-transparent pr-10"
+                    className="w-full px-3 py-2 text-base sm:text-body font-body text-default-font outline-none placeholder:text-[#a3a3a3] bg-transparent pr-10"
                     autoFocus
                   />
                   <button
@@ -151,17 +151,17 @@ export default function LoginModal({ isOpen, onLogin, onChangePassword }) {
           </div>
         ) : (
           /* CHANGE PASSWORD FORM */
-          <div className="flex w-full flex-col items-start p-6 sm:p-7">
+          <div className="flex w-full flex-col items-start p-5 sm:p-7">
             {/* Header */}
             <div className="flex items-center gap-3 mb-4">
               <div className="flex h-10 w-10 flex-none items-center justify-center rounded-md bg-neutral-900 text-white shadow-xs">
                 <KeyRound className="w-5 h-5" />
               </div>
-              <div className="flex flex-col items-start">
-                <span className="text-heading-3 font-heading-3 text-default-font">
+              <div className="flex flex-col items-start min-w-0">
+                <span className="text-heading-3 font-heading-3 text-default-font truncate">
                   Change Master Password
                 </span>
-                <span className="text-caption font-caption text-subtext-color">
+                <span className="text-caption font-caption text-subtext-color truncate">
                   Set a new portal password
                 </span>
               </div>
@@ -190,7 +190,7 @@ export default function LoginModal({ isOpen, onLogin, onChangePassword }) {
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     placeholder="Enter current password"
-                    className="w-full px-3 py-2 text-body font-body text-default-font outline-none placeholder:text-[#a3a3a3] bg-transparent pr-10"
+                    className="w-full px-3 py-2 text-base sm:text-body font-body text-default-font outline-none placeholder:text-[#a3a3a3] bg-transparent pr-10"
                     autoFocus
                   />
                   <button
@@ -216,7 +216,7 @@ export default function LoginModal({ isOpen, onLogin, onChangePassword }) {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="At least 4 characters"
-                    className="w-full px-3 py-2 text-body font-body text-default-font outline-none placeholder:text-[#a3a3a3] bg-transparent pr-10"
+                    className="w-full px-3 py-2 text-base sm:text-body font-body text-default-font outline-none placeholder:text-[#a3a3a3] bg-transparent pr-10"
                   />
                   <button
                     type="button"
@@ -241,7 +241,7 @@ export default function LoginModal({ isOpen, onLogin, onChangePassword }) {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Repeat new password"
-                    className="w-full px-3 py-2 text-body font-body text-default-font outline-none placeholder:text-[#a3a3a3] bg-transparent pr-10"
+                    className="w-full px-3 py-2 text-base sm:text-body font-body text-default-font outline-none placeholder:text-[#a3a3a3] bg-transparent pr-10"
                   />
                   <button
                     type="button"

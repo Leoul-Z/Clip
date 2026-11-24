@@ -396,159 +396,163 @@ export default function SubmissionsManager({
 
       {/* Submissions Table matching mockup */}
       <div className="flex w-full flex-col items-start overflow-hidden rounded-lg border border-solid border-neutral-border bg-default-background shadow-xs">
-        {/* Table Header */}
-        <div className="w-full items-center gap-4 border-b border-solid border-neutral-border bg-neutral-50 px-5 py-2.5 grid grid-cols-[120px_1fr_100px_130px_110px_88px]">
-          <span className="text-overline font-overline text-subtext-color uppercase">
-            Submission
-          </span>
-          <span className="text-overline font-overline text-subtext-color uppercase">
-            Clip
-          </span>
-          <span className="text-overline font-overline text-subtext-color text-right uppercase">
-            Views
-          </span>
-          <span className="text-overline font-overline text-subtext-color text-right uppercase">
-            Payout
-          </span>
-          <span className="text-overline font-overline text-subtext-color uppercase">
-            Status
-          </span>
-          <span className="text-overline font-overline text-subtext-color uppercase text-right">
-            {' '}
-          </span>
-        </div>
+        <div className="w-full overflow-x-auto">
+          <div className="min-w-[680px] w-full">
+            {/* Table Header */}
+            <div className="w-full items-center gap-4 border-b border-solid border-neutral-border bg-neutral-50 px-5 py-2.5 grid grid-cols-[120px_1fr_100px_130px_110px_88px]">
+              <span className="text-overline font-overline text-subtext-color uppercase">
+                Submission
+              </span>
+              <span className="text-overline font-overline text-subtext-color uppercase">
+                Clip
+              </span>
+              <span className="text-overline font-overline text-subtext-color text-right uppercase">
+                Views
+              </span>
+              <span className="text-overline font-overline text-subtext-color text-right uppercase">
+                Payout
+              </span>
+              <span className="text-overline font-overline text-subtext-color uppercase">
+                Status
+              </span>
+              <span className="text-overline font-overline text-subtext-color uppercase text-right">
+                {' '}
+              </span>
+            </div>
 
-        {/* Rows */}
-        {filteredSubs.length === 0 ? (
-          <div className="flex w-full flex-col items-center justify-center py-12 px-5 text-center text-subtext-color gap-2">
-            <span className="text-body font-body text-neutral-600">
-              No submissions found matching your filters.
-            </span>
-            {(search || statusFilter !== 'all' || platformFilter !== 'all' || selectedUser) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearch('');
-                  setStatusFilter('all');
-                  setPlatformFilter('all');
-                  if (onClearSelectedUser) onClearSelectedUser();
-                }}
-                className="text-caption font-caption text-brand-primary hover:underline cursor-pointer"
-              >
-                Clear all filters
-              </button>
-            )}
-          </div>
-        ) : (
-          filteredSubs.map((sub, idx) => {
-            const isLast = idx === filteredSubs.length - 1;
-            const viewsCount = parseInt(sub.views, 10) || 0;
-            const payoutAmount = parseFloat(sub.payment_amount) || 0;
-            const cleanHandle = sub.handle
-              ? `@${sub.handle.replace(/^@/, '')}`
-              : sub.telegram_username
-              ? `@${sub.telegram_username.replace(/^@/, '')}`
-              : `Chat ID: ${sub.chat_id}`;
-
-            return (
-              <div
-                key={sub.id}
-                className={`w-full items-center gap-4 px-5 py-3 grid grid-cols-[120px_1fr_100px_130px_110px_88px] hover:bg-neutral-50 transition ${
-                  !isLast ? 'border-b border-solid border-neutral-border' : ''
-                }`}
-              >
-                {/* 1. Submission ID & Date */}
-                <div className="flex flex-col items-start">
-                  <span className="w-full text-body-bold font-body-bold text-default-font">
-                    #{sub.id}
-                  </span>
-                  <span className="w-full text-caption font-caption text-subtext-color">
-                    {formatDate(sub.submitted_at)}
-                  </span>
-                </div>
-
-                {/* 2. Clip: Icon + Handle + Link + Caption */}
-                <div className="flex min-w-[0px] items-start gap-3">
-                  {getPlatformIcon(sub.platform)}
-                  <div className="flex min-w-[0px] flex-col items-start grow">
-                    <span className="w-full text-body-bold font-body-bold text-default-font truncate">
-                      {cleanHandle}
-                    </span>
-                    <a
-                      href={sub.link}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="line-clamp-1 w-full text-monospace-caption font-monospace-caption text-brand-700 break-all hover:underline"
-                      title={sub.link}
-                    >
-                      {sub.link}
-                    </a>
-                    {sub.caption ? (
-                      <span
-                        className="line-clamp-1 w-full text-caption font-caption text-neutral-400 italic truncate"
-                        title={sub.caption}
-                      >
-                        “{sub.caption}”
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-
-                {/* 3. Views */}
-                <span
-                  className={`text-monospace-body font-monospace-body text-right ${
-                    viewsCount > 0 ? 'text-default-font font-semibold' : 'text-neutral-400'
-                  }`}
-                >
-                  {viewsCount.toLocaleString()}
+            {/* Rows */}
+            {filteredSubs.length === 0 ? (
+              <div className="flex w-full flex-col items-center justify-center py-12 px-5 text-center text-subtext-color gap-2">
+                <span className="text-body font-body text-neutral-600">
+                  No submissions found matching your filters.
                 </span>
-
-                {/* 4. Payout */}
-                <span
-                  className={`text-monospace-body font-monospace-body text-right ${
-                    payoutAmount > 0 ? 'text-default-font font-semibold' : 'text-neutral-400'
-                  }`}
-                >
-                  {payoutAmount.toFixed(2)} ETB
-                </span>
-
-                {/* 5. Status Badge */}
-                <div className="flex items-start">{getStatusBadge(sub.status)}</div>
-
-                {/* 6. Edit Action */}
-                <div className="flex items-start justify-end">
+                {(search || statusFilter !== 'all' || platformFilter !== 'all' || selectedUser) && (
                   <button
                     type="button"
-                    onClick={() => onEditSubmission(sub)}
-                    className="flex items-center gap-1.5 self-stretch rounded-sm border border-solid border-neutral-border bg-default-background px-2.5 py-1 hover:bg-neutral-100 transition cursor-pointer shadow-2xs"
+                    onClick={() => {
+                      setSearch('');
+                      setStatusFilter('all');
+                      setPlatformFilter('all');
+                      if (onClearSelectedUser) onClearSelectedUser();
+                    }}
+                    className="text-caption font-caption text-brand-primary hover:underline cursor-pointer"
                   >
-                    <svg
-                      className="text-[13px] text-default-font"
-                      width="1em"
-                      height="1em"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"
-                        fill="none"
-                        stroke="rgb(55 65 81)"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    <span className="text-caption-bold font-caption-bold text-neutral-700">
-                      Edit
-                    </span>
+                    Clear all filters
                   </button>
-                </div>
+                )}
               </div>
-            );
-          })
-        )}
+            ) : (
+              filteredSubs.map((sub, idx) => {
+                const isLast = idx === filteredSubs.length - 1;
+                const viewsCount = parseInt(sub.views, 10) || 0;
+                const payoutAmount = parseFloat(sub.payment_amount) || 0;
+                const cleanHandle = sub.handle
+                  ? `@${sub.handle.replace(/^@/, '')}`
+                  : sub.telegram_username
+                  ? `@${sub.telegram_username.replace(/^@/, '')}`
+                  : `Chat ID: ${sub.chat_id}`;
+
+                return (
+                  <div
+                    key={sub.id}
+                    className={`w-full items-center gap-4 px-5 py-3 grid grid-cols-[120px_1fr_100px_130px_110px_88px] hover:bg-neutral-50 transition ${
+                      !isLast ? 'border-b border-solid border-neutral-border' : ''
+                    }`}
+                  >
+                    {/* 1. Submission ID & Date */}
+                    <div className="flex flex-col items-start">
+                      <span className="w-full text-body-bold font-body-bold text-default-font">
+                        #{sub.id}
+                      </span>
+                      <span className="w-full text-caption font-caption text-subtext-color">
+                        {formatDate(sub.submitted_at)}
+                      </span>
+                    </div>
+
+                    {/* 2. Clip: Icon + Handle + Link + Caption */}
+                    <div className="flex min-w-[0px] items-start gap-3">
+                      {getPlatformIcon(sub.platform)}
+                      <div className="flex min-w-[0px] flex-col items-start grow">
+                        <span className="w-full text-body-bold font-body-bold text-default-font truncate">
+                          {cleanHandle}
+                        </span>
+                        <a
+                          href={sub.link}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="line-clamp-1 w-full text-monospace-caption font-monospace-caption text-brand-700 break-all hover:underline"
+                          title={sub.link}
+                        >
+                          {sub.link}
+                        </a>
+                        {sub.caption ? (
+                          <span
+                            className="line-clamp-1 w-full text-caption font-caption text-neutral-400 italic truncate"
+                            title={sub.caption}
+                          >
+                            “{sub.caption}”
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* 3. Views */}
+                    <span
+                      className={`text-monospace-body font-monospace-body text-right ${
+                        viewsCount > 0 ? 'text-default-font font-semibold' : 'text-neutral-400'
+                      }`}
+                    >
+                      {viewsCount.toLocaleString()}
+                    </span>
+
+                    {/* 4. Payout */}
+                    <span
+                      className={`text-monospace-body font-monospace-body text-right ${
+                        payoutAmount > 0 ? 'text-default-font font-semibold' : 'text-neutral-400'
+                      }`}
+                    >
+                      {payoutAmount.toFixed(2)} ETB
+                    </span>
+
+                    {/* 5. Status Badge */}
+                    <div className="flex items-start">{getStatusBadge(sub.status)}</div>
+
+                    {/* 6. Edit Action */}
+                    <div className="flex items-start justify-end">
+                      <button
+                        type="button"
+                        onClick={() => onEditSubmission(sub)}
+                        className="flex items-center gap-1.5 self-stretch rounded-sm border border-solid border-neutral-border bg-default-background px-2.5 py-1 hover:bg-neutral-100 transition cursor-pointer shadow-2xs"
+                      >
+                        <svg
+                          className="text-[13px] text-default-font"
+                          width="1em"
+                          height="1em"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"
+                            fill="none"
+                            stroke="rgb(55 65 81)"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        <span className="text-caption-bold font-caption-bold text-neutral-700">
+                          Edit
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
 
         {/* Footer Summary */}
-        <div className="flex w-full items-center justify-between border-t border-solid border-neutral-border bg-neutral-50 px-5 py-2.5">
+        <div className="flex w-full items-center justify-between border-t border-solid border-neutral-border bg-neutral-50 px-4 sm:px-5 py-2.5 flex-wrap gap-2">
           <span className="text-caption font-caption text-subtext-color">
             {filteredSubs.length} submission{filteredSubs.length !== 1 ? 's' : ''}
             {selectedUser

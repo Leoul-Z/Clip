@@ -274,7 +274,7 @@ export default function EditSubmissionModal({
         </div>
 
         {/* Platform & Clip Link Strip */}
-        <div className="flex items-center gap-3 rounded-md border border-solid border-neutral-border px-3 py-2.5 self-stretch mx-6">
+        <div className="flex items-center gap-3 rounded-md border border-solid border-neutral-border px-3 py-2.5 self-stretch mx-4 sm:mx-6">
           {getPlatformIcon(submission.platform)}
           <div className="flex min-w-[0px] flex-col items-start grow">
             <span className="w-full text-body-bold font-body-bold text-default-font">
@@ -354,9 +354,9 @@ export default function EditSubmissionModal({
         </div>
 
         {/* Body Fields */}
-        <div className="flex w-full flex-col items-start gap-5 px-6 py-5">
+        <div className="flex w-full flex-col items-start gap-4 sm:gap-5 px-4 sm:px-6 py-4 sm:py-5">
           {/* Views & Payout Grid */}
-          <div className="w-full items-start gap-4 grid grid-cols-2">
+          <div className="w-full items-start gap-4 grid grid-cols-1 sm:grid-cols-2">
             {/* Views */}
             <div className="flex flex-col items-start gap-1.5 self-stretch">
               <span className="w-full text-caption-bold font-caption-bold text-neutral-700">
@@ -435,7 +435,7 @@ export default function EditSubmissionModal({
             <span className="w-full text-caption-bold font-caption-bold text-neutral-700">
               Status
             </span>
-            <div className="flex w-full items-start gap-1 rounded-md bg-neutral-100 px-1 py-1">
+            <div className="flex w-full items-start gap-1 rounded-md bg-neutral-100 px-1 py-1 overflow-x-auto">
               {/* Pending */}
               <button
                 type="button"
@@ -575,7 +575,7 @@ export default function EditSubmissionModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex w-full items-center gap-2 border-t border-solid border-neutral-border bg-neutral-50 px-6 py-3">
+        <div className="flex w-full items-center gap-2 border-t border-solid border-neutral-border bg-neutral-50 px-4 sm:px-6 py-3 flex-wrap">
           <button
             type="button"
             onClick={handleDelete}

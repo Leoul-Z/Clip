@@ -190,9 +190,9 @@ export default function RatesModal({ isOpen, rates, onClose, onSave }) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="flex w-full max-w-[560px] flex-col items-start overflow-hidden rounded-lg bg-default-background shadow-md border border-neutral-border animate-fade-in">
+      <div className="flex w-full max-w-[560px] flex-col items-start overflow-hidden rounded-lg bg-default-background shadow-md border border-neutral-border animate-fade-in max-h-[92vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex w-full items-start gap-3 px-6 pt-5 pb-4">
+        <div className="flex w-full items-start gap-3 px-4 sm:px-6 pt-5 pb-4">
           <div className="flex flex-col items-start gap-1 grow">
             <span className="w-full text-heading-3 font-heading-3 text-default-font">
               Pricing rates
@@ -225,11 +225,11 @@ export default function RatesModal({ isOpen, rates, onClose, onSave }) {
         </div>
 
         {/* Preview Payout Toolbar */}
-        <div className="flex w-full items-center justify-between border-y border-solid border-neutral-border bg-neutral-50 px-6 py-3">
+        <div className="flex w-full flex-col sm:flex-row sm:items-center justify-between border-y border-solid border-neutral-border bg-neutral-50 px-4 sm:px-6 py-2.5 sm:py-3 gap-2">
           <span className="text-caption-bold font-caption-bold text-neutral-700">
             Preview payout at
           </span>
-          <div className="flex items-center gap-1 rounded-md bg-neutral-100 px-1 py-1">
+          <div className="flex items-center gap-1 rounded-md bg-neutral-100 px-1 py-1 overflow-x-auto w-full sm:w-auto">
             {['10K', '25K', '50K', '100K'].map((preset) => {
               const isActive = previewPreset === preset;
               return (
@@ -240,7 +240,7 @@ export default function RatesModal({ isOpen, rates, onClose, onSave }) {
                     setPreviewPreset(preset);
                     setCustomViews('');
                   }}
-                  className={`flex items-start rounded-sm px-2.5 py-1 transition cursor-pointer ${
+                  className={`flex items-start rounded-sm px-2.5 py-1 transition cursor-pointer shrink-0 ${
                     isActive ? 'bg-default-background shadow-sm' : 'hover:bg-neutral-200/60'
                   }`}
                 >
@@ -272,73 +272,90 @@ export default function RatesModal({ isOpen, rates, onClose, onSave }) {
         </div>
 
         {/* Platform Rates Table */}
-        <div className="flex w-full flex-col items-start px-6 py-2">
-          {/* Table Header */}
-          <div className="w-full items-center gap-4 py-2 grid grid-cols-[1fr_168px_120px]">
-            <span className="text-overline font-overline text-subtext-color uppercase">
-              Platform
-            </span>
-            <span className="text-overline font-overline text-subtext-color uppercase">
-              Rate per 1K views
-            </span>
-            <span className="text-overline font-overline text-subtext-color text-right uppercase">
-              At {previewLabel} views
-            </span>
-          </div>
+        <div className="flex w-full flex-col items-start px-4 sm:px-6 py-2 overflow-x-auto">
+          <div className="min-w-[460px] w-full">
+            {/* Table Header */}
+            <div className="w-full items-center gap-4 py-2 grid grid-cols-[1fr_168px_120px]">
+              <span className="text-overline font-overline text-subtext-color uppercase">
+                Platform
+              </span>
+              <span className="text-overline font-overline text-subtext-color uppercase">
+                Rate per 1K views
+              </span>
+              <span className="text-overline font-overline text-subtext-color text-right uppercase">
+                At {previewLabel} views
+              </span>
+            </div>
 
-          {/* Platform Rows */}
-          {platforms.map((plat) => {
-            const currentRate = parseFloat(formData[plat.id]) || 0;
-            const originalRate = parseFloat(originalRates[plat.id]) || 0;
-            const isChanged = currentRate !== originalRate;
+            {/* Platform Rows */}
+            {platforms.map((plat) => {
+              const currentRate = parseFloat(formData[plat.id]) || 0;
+              const originalRate = parseFloat(originalRates[plat.id]) || 0;
+              const isChanged = currentRate !== originalRate;
 
-            const ratePerSingleView = (currentRate / 1000).toFixed(3);
-            const payoutAmount = (currentViews / 1000) * currentRate;
-            const originalPayoutAmount = (currentViews / 1000) * originalRate;
+              const ratePerSingleView = (currentRate / 1000).toFixed(3);
+              const payoutAmount = (currentViews / 1000) * currentRate;
+              const originalPayoutAmount = (currentViews / 1000) * originalRate;
 
-            return (
-              <div
-                key={plat.id}
-                className="w-full items-center gap-4 border-t border-solid border-neutral-border py-3 grid grid-cols-[1fr_168px_120px]"
-              >
-                {/* Platform info */}
-                <div className="flex items-center gap-3">
-                  {plat.icon}
-                  <div className="flex flex-col items-start">
-                    <span className="w-full text-body-bold font-body-bold text-default-font">
-                      {plat.name}
-                    </span>
-                    <span className="w-full text-monospace-caption font-monospace-caption text-subtext-color">
-                      {ratePerSingleView} ETB / view
+              return (
+                <div
+                  key={plat.id}
+                  className="w-full items-center gap-4 border-t border-solid border-neutral-border py-3 grid grid-cols-[1fr_168px_120px]"
+                >
+                  {/* Platform info */}
+                  <div className="flex items-center gap-3">
+                    {plat.icon}
+                    <div className="flex flex-col items-start">
+                      <span className="w-full text-body-bold font-body-bold text-default-font">
+                        {plat.name}
+                      </span>
+                      <span className="w-full text-monospace-caption font-monospace-caption text-subtext-color">
+                        {ratePerSingleView} ETB / view
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Rate input */}
+                  <div
+                    className={`flex grow shrink-0 basis-0 items-center overflow-hidden rounded-sm border border-solid bg-default-background transition ${
+                      isChanged
+                        ? 'border-brand-primary shadow-[0px_0px_0px_3px_#d6eefa]'
+                        : 'border-neutral-300 focus-within:border-brand-primary focus-within:shadow-[0px_0px_0px_3px_#d6eefa]'
+                    }`}
+                  >
+                    <input
+                      className="w-0 flex-none px-3 py-2 text-monospace-body font-monospace-body text-default-font outline-none placeholder:text-[#a3a3a3] min-w-0 grow shrink basis-0 bg-transparent"
+                      placeholder="0"
+                      value={formData[plat.id]}
+                      onChange={(e) => handleChange(plat.id, e.target.value)}
+                      type="number"
+                      step="0.5"
+                      min="0"
+                    />
+                    <span className="text-caption font-caption text-subtext-color pr-3 select-none">
+                      ETB
                     </span>
                   </div>
-                </div>
 
-                {/* Rate input */}
-                <div
-                  className={`flex grow shrink-0 basis-0 items-center overflow-hidden rounded-sm border border-solid bg-default-background transition ${
-                    isChanged
-                      ? 'border-brand-primary shadow-[0px_0px_0px_3px_#d6eefa]'
-                      : 'border-neutral-300 focus-within:border-brand-primary focus-within:shadow-[0px_0px_0px_3px_#d6eefa]'
-                  }`}
-                >
-                  <input
-                    className="w-0 flex-none px-3 py-2 text-monospace-body font-monospace-body text-default-font outline-none placeholder:text-[#a3a3a3] min-w-0 grow shrink basis-0 bg-transparent"
-                    placeholder="0"
-                    value={formData[plat.id]}
-                    onChange={(e) => handleChange(plat.id, e.target.value)}
-                    type="number"
-                    step="0.5"
-                    min="0"
-                  />
-                  <span className="text-caption font-caption text-subtext-color pr-3 select-none">
-                    ETB
-                  </span>
-                </div>
-
-                {/* Calculated payout with diff */}
-                {isChanged ? (
-                  <div className="flex flex-col items-end">
+                  {/* Calculated payout with diff */}
+                  {isChanged ? (
+                    <div className="flex flex-col items-end">
+                      <span className="text-monospace-body font-monospace-body text-default-font text-right">
+                        {payoutAmount.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}{' '}
+                        ETB
+                      </span>
+                      <span className="text-caption font-caption text-warning-800">
+                        was{' '}
+                        {originalPayoutAmount.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                  ) : (
                     <span className="text-monospace-body font-monospace-body text-default-font text-right">
                       {payoutAmount.toLocaleString(undefined, {
                         minimumFractionDigits: 2,
@@ -346,30 +363,15 @@ export default function RatesModal({ isOpen, rates, onClose, onSave }) {
                       })}{' '}
                       ETB
                     </span>
-                    <span className="text-caption font-caption text-warning-800">
-                      was{' '}
-                      {originalPayoutAmount.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </span>
-                  </div>
-                ) : (
-                  <span className="text-monospace-body font-monospace-body text-default-font text-right">
-                    {payoutAmount.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}{' '}
-                    ETB
-                  </span>
-                )}
-              </div>
-            );
-          })}
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Notice Info Banner */}
-        <div className="flex items-start gap-2 rounded-md bg-brand-50 px-3 py-2.5 self-stretch mx-6 mb-4">
+        <div className="flex items-start gap-2 rounded-md bg-brand-50 px-3 py-2.5 self-stretch mx-4 sm:mx-6 mb-4">
           <svg
             className="text-[14px] text-default-font mt-0.5 shrink-0"
             width="1em"

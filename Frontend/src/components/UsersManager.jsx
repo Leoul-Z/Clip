@@ -213,48 +213,51 @@ export default function UsersManager({
                 className="flex w-full flex-col items-start overflow-hidden rounded-lg border border-solid border-neutral-border bg-default-background shadow-xs hover:border-neutral-300 transition"
               >
                 {/* Card Header Bar */}
-                <div className="flex w-full items-center gap-4 border-b border-solid border-neutral-border px-5 py-3 flex-wrap sm:flex-nowrap">
-                  {/* Initial Avatar */}
-                  <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-brand-100">
-                    <span className="text-body-bold font-body-bold text-brand-700">
-                      {initialLetter}
-                    </span>
-                  </div>
-
-                  {/* Username & ID */}
-                  <div className="flex flex-col items-start grow min-w-[140px]">
-                    <div className="flex w-full items-center gap-1.5">
-                      {tgLink ? (
-                        <a
-                          href={tgLink}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-body-bold font-body-bold text-default-font hover:text-brand-primary transition"
-                        >
-                          {rawUsername || 'Anonymous'}
-                        </a>
-                      ) : (
-                        <span className="text-body-bold font-body-bold text-default-font">
-                          {rawUsername || 'Anonymous'}
-                        </span>
-                      )}
-                      <div className="flex h-4 w-4 flex-none items-center justify-center rounded-full bg-brand-primary">
-                        <svg className="text-[10px]" width="1em" height="1em" viewBox="0 0 24 24">
-                          <path
-                            d="M21.5 3.5 2.6 10.8c-1 .4-1 1.6 0 1.9l4.8 1.5 1.8 5.6c.2.7 1.1.9 1.6.4l2.7-2.5 4.8 3.5c.6.4 1.4.1 1.6-.6l3.2-15.3c.2-.9-.7-1.6-1.6-1.3z"
-                            fill="rgb(255 255 255)"
-                          />
-                        </svg>
-                      </div>
+                <div className="flex w-full items-center justify-between gap-3 border-b border-solid border-neutral-border px-4 sm:px-5 py-3 flex-wrap sm:flex-nowrap">
+                  {/* User Avatar & Identity */}
+                  <div className="flex items-center gap-3 min-w-0 grow">
+                    {/* Initial Avatar */}
+                    <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-brand-100">
+                      <span className="text-body-bold font-body-bold text-brand-700">
+                        {initialLetter}
+                      </span>
                     </div>
-                    <span className="w-full text-monospace-caption font-monospace-caption text-subtext-color">
-                      ID {u.chat_id}
-                    </span>
+
+                    {/* Username & ID */}
+                    <div className="flex flex-col items-start min-w-0">
+                      <div className="flex items-center gap-1.5 max-w-full">
+                        {tgLink ? (
+                          <a
+                            href={tgLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-body-bold font-body-bold text-default-font hover:text-brand-primary transition truncate"
+                          >
+                            {rawUsername || 'Anonymous'}
+                          </a>
+                        ) : (
+                          <span className="text-body-bold font-body-bold text-default-font truncate">
+                            {rawUsername || 'Anonymous'}
+                          </span>
+                        )}
+                        <div className="flex h-4 w-4 flex-none items-center justify-center rounded-full bg-brand-primary">
+                          <svg className="text-[10px]" width="1em" height="1em" viewBox="0 0 24 24">
+                            <path
+                              d="M21.5 3.5 2.6 10.8c-1 .4-1 1.6 0 1.9l4.8 1.5 1.8 5.6c.2.7 1.1.9 1.6.4l2.7-2.5 4.8 3.5c.6.4 1.4.1 1.6-.6l3.2-15.3c.2-.9-.7-1.6-1.6-1.3z"
+                              fill="rgb(255 255 255)"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                      <span className="w-full text-monospace-caption font-monospace-caption text-subtext-color">
+                        ID {u.chat_id}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Clipper KPI Stats */}
-                  <div className="flex items-center gap-6 px-2">
-                    <div className="flex flex-col items-end">
+                  <div className="flex items-center gap-4 sm:gap-6 px-0 sm:px-2 w-full sm:w-auto justify-between sm:justify-end order-3 sm:order-2 py-2 sm:py-0 border-t sm:border-t-0 border-neutral-100">
+                    <div className="flex flex-col items-start sm:items-end">
                       <span className="text-overline font-overline text-subtext-color uppercase">
                         Views
                       </span>
@@ -267,7 +270,7 @@ export default function UsersManager({
                       </span>
                     </div>
 
-                    <div className="flex flex-col items-end">
+                    <div className="flex flex-col items-center sm:items-end">
                       <span className="text-overline font-overline text-subtext-color uppercase">
                         Earned
                       </span>
@@ -298,14 +301,14 @@ export default function UsersManager({
                     </div>
                   </div>
 
-                  <div className="hidden sm:flex h-8 w-px flex-none items-start bg-neutral-border" />
+                  <div className="hidden sm:flex h-8 w-px flex-none items-start bg-neutral-border order-3" />
 
                   {/* Actions */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 order-2 sm:order-4">
                     {/* DM Button */}
                     <button
                       onClick={() => onSendMessage(u)}
-                      className="flex items-center gap-1.5 rounded-sm border border-solid border-neutral-border px-3 py-1.5 hover:bg-neutral-50 transition cursor-pointer"
+                      className="flex items-center gap-1.5 rounded-sm border border-solid border-neutral-border px-2.5 sm:px-3 py-1.5 hover:bg-neutral-50 transition cursor-pointer"
                       title="Direct message this clipper via Telegram"
                     >
                       <svg className="text-[14px]" width="1em" height="1em" viewBox="0 0 24 24">
@@ -324,7 +327,7 @@ export default function UsersManager({
                     {/* Clips Button */}
                     <button
                       onClick={() => onViewSubmissions(u)}
-                      className={`flex items-center rounded-sm px-3 py-1.5 transition cursor-pointer ${
+                      className={`flex items-center rounded-sm px-2.5 sm:px-3 py-1.5 transition cursor-pointer ${
                         (u.submission_count || 0) > 0
                           ? 'bg-brand-primary hover:bg-brand-600 text-white shadow-xs'
                           : 'border border-solid border-neutral-border hover:bg-neutral-50 text-neutral-700'
