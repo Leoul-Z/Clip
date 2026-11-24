@@ -90,9 +90,19 @@ class BackendDatabase:
                     ORDER BY u.id DESC
                 """)
                 social_rows = await conn.fetch("""
-                    SELECT id, user_id, platform, handle, password_encrypted, created_at
-                    FROM social_accounts
-                    ORDER BY id ASC
+                    SELECT 
+                        sa.id, 
+                        sa.user_id, 
+                        sa.platform, 
+                        sa.handle, 
+                        sa.password_encrypted, 
+                        sa.created_at,
+                        COALESCE(SUM(sub.views), 0)::INTEGER AS views,
+                        COALESCE(SUM(sub.payment_amount), 0.0)::FLOAT AS money
+                    FROM social_accounts sa
+                    LEFT JOIN submissions sub ON sub.social_account_id = sa.id AND sub.status = 'approved'
+                    GROUP BY sa.id, sa.user_id, sa.platform, sa.handle, sa.password_encrypted, sa.created_at
+                    ORDER BY sa.id ASC
                 """)
                 user_list = [dict(r) for r in user_rows]
                 social_list = [dict(r) for r in social_rows]
@@ -123,10 +133,24 @@ class BackendDatabase:
                         }
                         for r in u_tuples
                     ]
-                async with db.execute("SELECT id, user_id, platform, handle, password_encrypted, created_at FROM social_accounts ORDER BY id ASC") as cur:
+                async with db.execute("""
+                    SELECT 
+                        sa.id, 
+                        sa.user_id, 
+                        sa.platform, 
+                        sa.handle, 
+                        sa.password_encrypted, 
+                        sa.created_at,
+                        COALESCE(SUM(sub.views), 0) AS views,
+                        COALESCE(SUM(sub.payment_amount), 0.0) AS money
+                    FROM social_accounts sa
+                    LEFT JOIN submissions sub ON sub.social_account_id = sa.id AND sub.status = 'approved'
+                    GROUP BY sa.id, sa.user_id, sa.platform, sa.handle, sa.password_encrypted, sa.created_at
+                    ORDER BY sa.id ASC
+                """) as cur:
                     s_tuples = await cur.fetchall()
                     social_list = [
-                        {"id": r[0], "user_id": r[1], "platform": r[2], "handle": r[3], "password_encrypted": r[4], "created_at": r[5]}
+                        {"id": r[0], "user_id": r[1], "platform": r[2], "handle": r[3], "password_encrypted": r[4], "created_at": r[5], "views": r[6], "money": r[7]}
                         for r in s_tuples
                     ]
 
@@ -143,6 +167,8 @@ class BackendDatabase:
                 "password": decrypted_pass,
                 "password_encrypted": s.get("password_encrypted"),
                 "created_at": s.get("created_at"),
+                "views": s.get("views", 0),
+                "money": float(s.get("money", 0.0)),
             })
 
         res = []

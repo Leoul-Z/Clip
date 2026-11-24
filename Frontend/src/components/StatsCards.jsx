@@ -3,7 +3,7 @@ import { Users, Video, Clock, Eye, DollarSign, Share2 } from 'lucide-react';
 
 export default function StatsCards({ stats, onPendingClick }) {
   const formatNum = (n) => Number(n || 0).toLocaleString();
-  const formatCurr = (n) => `$${Number(n || 0).toFixed(2)}`;
+  const formatCurr = (n) => `${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`;
 
   return (
     <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">

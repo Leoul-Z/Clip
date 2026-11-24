@@ -49,13 +49,43 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
             user = await db.get_user(chat_id)
             if user:
                 username = user["telegram_username"]
-                views = user["views"]
-                money = user["money"]
+                total_views = user["views"]
+                total_money = user["money"]
                 username_str = html.escape(username or "User")
+
+                platform_stats = await db.get_user_platform_stats(chat_id)
+
+                platform_icons = {
+                    "tiktok": "🎵",
+                    "youtube": "▶️",
+                    "instagram": "📸",
+                    "twitter": "𝕏",
+                }
+
+                lines = [
+                    f"📊 <b>Your Stats</b> (<i>{username_str}</i>)\n",
+                    f"👁 Total Views: <b>{total_views:,}</b>",
+                    f"💰 Total Earnings: <b>{total_money:,.2f} ETB</b>\n",
+                    "━━━━━━━━━━━━━━━━━━",
+                    "📱 <b>Stats by Platform:</b>",
+                ]
+
+                if platform_stats:
+                    for ps in platform_stats:
+                        p_raw = (ps.get("platform") or "").lower()
+                        icon = platform_icons.get(p_raw, "🌐")
+                        p_name = p_raw.capitalize() if p_raw != "twitter" else "Twitter / X"
+                        p_views = ps.get("views", 0)
+                        p_money = float(ps.get("money", 0.0))
+                        lines.append(
+                            f"{icon} <b>{p_name}:</b>\n"
+                            f"   👁 Views: <b>{p_views:,}</b> | 💰 <b>{p_money:,.2f} ETB</b>"
+                        )
+                else:
+                    lines.append("• <i>No linked platform activity yet. Link your socials to track stats!</i>")
+
                 await callback.message.edit_text(
-                    f"📊 <b>Your Stats</b> (<i>{username_str}</i>)\n\n"
-                    f"👁 Total Views: <b>{views:,}</b>\n"
-                    f"💰 Total Earnings: <b>${money:.2f}</b>",
+                    "\n".join(lines),
                     reply_markup=get_main_menu_keyboard(),
                 )
             else:
@@ -143,10 +173,10 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
                     lines.append(
                         f"{idx}. 🔗 <a href=\"{html.escape(link)}\">Submission #{sub['id']}</a> ({plat}: <code>{html.escape(handle)}</code>)"
                         f"{caption_str}\n"
-                        f"   👁 <b>Views:</b> {views:,} | 💰 <b>Payment:</b> ${payment:.2f}\n"
+                        f"   👁 <b>Views:</b> {views:,} | 💰 <b>Payment:</b> {payment:,.2f} ETB\n"
                         f"   📌 <b>Status:</b> {html.escape(status)}"
                     )
-                lines.append(f"\n💵 <b>Total Approved Earnings:</b> <b>${total_payout:.2f}</b>")
+                lines.append(f"\n💵 <b>Total Approved Earnings:</b> <b>{total_payout:,.2f} ETB</b>")
                 lines.append(f"👁 <b>Total Views:</b> <b>{total_views:,}</b>")
                 text = "\n".join(lines)
 
@@ -182,7 +212,7 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
                     money = clipper["money"]
                     lines.append(
                         f"{medal} <b>{html.escape(username)}</b>\n"
-                        f"   👁 Views: <b>{views:,}</b> | 💰 Earnings: <b>${money:.2f}</b>\n"
+                        f"   👁 Views: <b>{views:,}</b> | 💰 Earnings: <b>{money:,.2f} ETB</b>\n"
                     )
                 lines.append("🔥 <i>Keep clipping and posting to climb the ranks!</i>")
                 text = "\n".join(lines)

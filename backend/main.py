@@ -168,7 +168,7 @@ async def update_submission(submission_id: int, body: UpdateSubmissionRequest, _
             f"🔗 <b>Link:</b> {html.escape(res.get('link', ''))}\n"
             f"{caption_part}"
             f"👁 <b>Views:</b> {views_val:,}\n"
-            f"💰 <b>Payment:</b> <b>${pay_val:.2f}</b>\n\n"
+            f"💰 <b>Payment:</b> <b>{pay_val:,.2f} ETB</b>\n\n"
             f"Check your updated earnings under <b>📊 Stats</b>."
         )
         await send_telegram_message(res["chat_id"], msg_text)

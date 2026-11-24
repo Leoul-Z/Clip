@@ -279,6 +279,52 @@ class Database:
                         })
                     return res
 
+    async def get_user_platform_stats(self, chat_id: int) -> list[dict]:
+        """Returns views and approved earnings broken down by platform for a user."""
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT 
+                        sa.platform,
+                        COALESCE(SUM(s.views), 0)::INTEGER AS views,
+                        COALESCE(SUM(s.payment_amount), 0.0)::FLOAT AS money,
+                        COUNT(s.id) FILTER (WHERE s.status = 'approved')::INTEGER AS approved_count,
+                        COUNT(s.id)::INTEGER AS total_submissions
+                    FROM social_accounts sa
+                    JOIN users u ON sa.user_id = u.id
+                    LEFT JOIN submissions s ON s.social_account_id = sa.id AND s.status = 'approved'
+                    WHERE u.chat_id = $1
+                    GROUP BY sa.platform
+                    ORDER BY views DESC, money DESC
+                    """,
+                    chat_id,
+                )
+                return [dict(r) for r in rows]
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                db.row_factory = aiosqlite.Row
+                async with db.execute(
+                    """
+                    SELECT 
+                        sa.platform,
+                        COALESCE(SUM(s.views), 0) AS views,
+                        COALESCE(SUM(s.payment_amount), 0.0) AS money,
+                        SUM(CASE WHEN s.status = 'approved' THEN 1 ELSE 0 END) AS approved_count,
+                        COUNT(s.id) AS total_submissions
+                    FROM social_accounts sa
+                    JOIN users u ON sa.user_id = u.id
+                    LEFT JOIN submissions s ON s.social_account_id = sa.id AND s.status = 'approved'
+                    WHERE u.chat_id = ?
+                    GROUP BY sa.platform
+                    ORDER BY views DESC, money DESC
+                    """,
+                    (chat_id,),
+                ) as cursor:
+                    rows = await cursor.fetchall()
+                    return [dict(r) for r in rows]
+
     async def upsert_user(self, chat_id: int, telegram_username: str) -> int:
         if self.is_postgres:
             async with self.pool.acquire() as conn:

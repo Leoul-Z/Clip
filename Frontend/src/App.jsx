@@ -184,7 +184,7 @@ export default function App() {
 
   const handleSaveSubmission = async (id, data) => {
     await AdminAPI.updateSubmission(id, data);
-    addToast(`Submission #${id} updated: ${data.views.toLocaleString()} views, $${data.payment_amount.toFixed(2)}`, 'success');
+    addToast(`Submission #${id} updated: ${data.views.toLocaleString()} views, ${data.payment_amount.toFixed(2)} ETB`, 'success');
     loadData();
   };
 

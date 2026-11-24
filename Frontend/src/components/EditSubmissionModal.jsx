@@ -117,10 +117,10 @@ export default function EditSubmissionModal({ isOpen, submission, onClose, onSav
 
             <div>
               <label className="block text-xs font-semibold text-neutral-700 mb-1.5 flex items-center gap-1">
-                <DollarSign className="w-3.5 h-3.5 text-paid-500" /> Payment Amount ($)
+                <DollarSign className="w-3.5 h-3.5 text-paid-500" /> Payment Amount (ETB)
               </label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400 text-sm font-bold">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-xs font-bold">ETB</span>
                 <input
                   type="number"
                   min="0"
@@ -129,10 +129,10 @@ export default function EditSubmissionModal({ isOpen, submission, onClose, onSav
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
                   placeholder="e.g. 50.00"
-                  className="w-full pl-8 pr-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm text-neutral-900 focus:outline-none focus:border-brand-500 focus:bg-white font-mono"
+                  className="w-full pl-12 pr-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm text-neutral-900 focus:outline-none focus:border-brand-500 focus:bg-white font-mono"
                 />
               </div>
-              <p className="text-[11px] text-neutral-500 mt-1">Paid to clipper</p>
+              <p className="text-[11px] text-neutral-500 mt-1">Paid to clipper in ETB</p>
             </div>
           </div>
 

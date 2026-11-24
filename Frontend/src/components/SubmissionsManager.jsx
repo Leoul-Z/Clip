@@ -159,7 +159,7 @@ export default function SubmissionsManager({ submissions, onEditSubmission, onCo
                 <th className="px-4 py-3.5 font-semibold">Video Link</th>
                 <th className="px-4 py-3.5 font-semibold">Caption</th>
                 <th className="px-4 py-3.5 font-semibold text-right">Views</th>
-                <th className="px-4 py-3.5 font-semibold text-right">Payment ($)</th>
+                <th className="px-4 py-3.5 font-semibold text-right">Payment (ETB)</th>
                 <th className="px-4 py-3.5 font-semibold text-center">Status</th>
                 <th className="px-5 py-3.5 font-semibold text-right">Action</th>
               </tr>
@@ -228,9 +228,9 @@ export default function SubmissionsManager({ submissions, onEditSubmission, onCo
                       {Number(sub.views || 0).toLocaleString()}
                     </td>
 
-                    {/* Payment ($) - Paid: #6366F1 */}
+                    {/* Payment (ETB) - Paid: #6366F1 */}
                     <td className="px-4 py-3.5 text-right font-mono font-bold text-paid-600 text-xs">
-                      ${Number(sub.payment_amount || 0).toFixed(2)}
+                      {Number(sub.payment_amount || 0).toFixed(2)} ETB
                     </td>
 
                     {/* Status Badge */}

@@ -229,6 +229,14 @@ export default function UsersManager({
                                 >
                                   {getPlatformIcon(sa.platform)}
                                   <span className="font-medium font-mono">{sa.handle}</span>
+                                  {(sa.views > 0 || sa.money > 0) && (
+                                    <span
+                                      className="text-[10px] font-mono text-neutral-600 bg-white px-1.5 py-0.5 rounded border border-neutral-200"
+                                      title="Platform stats"
+                                    >
+                                      👁 {Number(sa.views).toLocaleString()} • {Number(sa.money).toFixed(2)} ETB
+                                    </span>
+                                  )}
                                   <button
                                     onClick={() => onEditSocial(sa, u.chat_id)}
                                     className="text-neutral-400 hover:text-brand-600 ml-0.5"
@@ -309,7 +317,7 @@ export default function UsersManager({
                           {Number(u.views || 0).toLocaleString()} <span className="text-neutral-500 font-normal">views</span>
                         </div>
                         <div className="font-mono font-bold text-paid-600 text-xs">
-                          ${Number(u.money || 0).toFixed(2)}
+                          {Number(u.money || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB
                         </div>
                       </td>
 

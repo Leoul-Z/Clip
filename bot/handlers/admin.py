@@ -101,7 +101,7 @@ async def update_stats_command(message: types.Message):
     await message.answer(
         f"✅ Successfully updated stats for <b>{html.escape(target_username)}</b>:\n"
         f"👁 Views: <b>{new_views:,}</b>\n"
-        f"💰 Money: <b>${new_money:.2f}</b>"
+        f"💰 Money: <b>{new_money:,.2f} ETB</b>"
     )
 
 async def set_pay_command(message: types.Message):
@@ -135,7 +135,7 @@ async def set_pay_command(message: types.Message):
     views_line = f"👁 <b>Views:</b> {res.get('views', 0):,}\n" if res.get("views") is not None else ""
 
     await message.answer(
-        f"✅ Payment for Submission <code>#{sub_id}</code> updated to <b>${amount:.2f}</b>!"
+        f"✅ Payment for Submission <code>#{sub_id}</code> updated to <b>{amount:,.2f} ETB</b>!"
         + (f" (Views: {views:,})" if views is not None else "")
     )
 
@@ -147,7 +147,7 @@ async def set_pay_command(message: types.Message):
             f"🔗 <b>Link:</b> {html.escape(sub_link)}\n"
             f"{caption_line}"
             f"{views_line}"
-            f"💰 <b>Payment:</b> <b>${amount:.2f}</b>\n\n"
+            f"💰 <b>Payment:</b> <b>{amount:,.2f} ETB</b>\n\n"
             f"You can check all your earnings under <b>🔗 Submission Links</b>.",
             disable_web_page_preview=True,
         )

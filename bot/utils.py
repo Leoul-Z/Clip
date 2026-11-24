@@ -35,7 +35,7 @@ def format_user_data_card(
                 )
                 plat_prefix = f"[{sub.get('platform', '').title()}] " if sub.get("platform") else ""
                 sub_lines.append(
-                    f"• #{sub['id']}: {plat_prefix}<a href=\"{html.escape(sub['link'])}\">{html.escape(sub['link'])}</a>{cap_snippet} | 👁 {sub.get('views', 0):,} | 💰 <b>${sub['payment']:.2f}</b> ({html.escape(sub['status'])})"
+                    f"• #{sub['id']}: {plat_prefix}<a href=\"{html.escape(sub['link'])}\">{html.escape(sub['link'])}</a>{cap_snippet} | 👁 {sub.get('views', 0):,} | 💰 <b>{sub['payment']:,.2f} ETB</b> ({html.escape(sub['status'])})"
                 )
         else:
             sub_lines.append("• <i>No submissions yet</i>")
@@ -44,7 +44,7 @@ def format_user_data_card(
             f"👤 <b>User Info: {html.escape(uname)}</b> (Admin View)\n\n"
             f"🆔 <b>Chat ID:</b> <code>{chat_id}</code>\n"
             f"👁 <b>Total Views:</b> <b>{views:,}</b>\n"
-            f"💰 <b>Total Earnings:</b> <b>${money:.2f}</b>\n\n"
+            f"💰 <b>Total Earnings:</b> <b>{money:,.2f} ETB</b>\n\n"
             f"💳 <b>Bank Account / Payment Details:</b>\n"
             f"<code>{html.escape(payment_info)}</code>\n\n"
             f"📱 <b>Linked Social Accounts:</b>\n"
@@ -61,7 +61,7 @@ def format_user_data_card(
         return (
             f"👤 <b>User Info: {html.escape(uname)}</b>\n\n"
             f"👁 <b>Total Views:</b> <b>{views:,}</b>\n"
-            f"💰 <b>Total Earnings:</b> <b>${money:.2f}</b>\n\n"
+            f"💰 <b>Total Earnings:</b> <b>{money:,.2f} ETB</b>\n\n"
             f"💳 <b>Bank Account / Payment Details:</b>\n"
             f"<code>{html.escape(payment_info)}</code>\n\n"
             f"📱 <b>Linked Social Accounts:</b>\n"
