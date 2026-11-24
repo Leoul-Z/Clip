@@ -1,49 +1,10 @@
 import html
 import logging
 from aiogram import types
-from aiogram.fsm.context import FSMContext
 from bot.config import ADMIN_IDS
 from bot.database import db
-from bot.keyboards import get_back_keyboard, get_main_menu_keyboard
-from bot.states import BotStates
+from bot.keyboards import get_main_menu_keyboard
 from bot.utils import format_user_data_card
-
-async def process_inspect_user(message: types.Message, state: FSMContext):
-    text = (message.text or "").strip()
-    if not text:
-        await message.answer(
-            "⚠️ Please enter a valid username (e.g., <code>@username</code>):",
-            reply_markup=get_back_keyboard(),
-        )
-        return
-
-    if not text.startswith("@"):
-        text = f"@{text}"
-
-    target_user = await db.get_user_by_username(text)
-    if not target_user:
-        await state.clear()
-        await state.set_state(BotStates.main_menu)
-        await message.answer(
-            f"❌ User <code>{html.escape(text)}</code> was not found in the database.",
-            reply_markup=get_main_menu_keyboard(),
-        )
-        return
-
-    is_admin = bool(message.from_user and message.from_user.id in ADMIN_IDS)
-    chat_id = target_user["chat_id"]
-    socials = await db.get_user_social_accounts_full(chat_id)
-    submissions = await db.get_user_submissions(chat_id)
-
-    response_text = format_user_data_card(target_user, socials, submissions, is_admin)
-
-    await state.clear()
-    await state.set_state(BotStates.main_menu)
-    await message.answer(
-        response_text,
-        reply_markup=get_main_menu_keyboard(),
-        disable_web_page_preview=True,
-    )
 
 async def info_command(message: types.Message):
     parts = (message.text or "").split()

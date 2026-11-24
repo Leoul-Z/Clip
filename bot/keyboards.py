@@ -14,7 +14,6 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(text="🏆 Leaderboard", callback_data="menu_leaderboard"),
-                InlineKeyboardButton(text="🔍 Check User", callback_data="menu_check_user"),
             ],
         ]
     )

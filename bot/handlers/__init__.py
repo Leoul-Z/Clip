@@ -2,7 +2,6 @@ from aiogram import Dispatcher, F
 from aiogram.filters import Command
 from bot.handlers.admin import (
     info_command,
-    process_inspect_user,
     set_pay_command,
     set_views_command,
     update_stats_command,
@@ -42,7 +41,6 @@ def register_all_handlers(dp: Dispatcher):
     dp.message.register(process_payment_info, BotStates.entering_payment)
     dp.message.register(process_submission_link, BotStates.entering_submission_link)
     dp.message.register(process_submission_caption, BotStates.entering_submission_caption)
-    dp.message.register(process_inspect_user, BotStates.inspecting_user)
 
     # Callbacks
     dp.callback_query.register(

@@ -9,4 +9,3 @@ class BotStates(StatesGroup):
     entering_submission_link = State()
     selecting_submission_account = State()
     entering_submission_caption = State()
-    inspecting_user = State()

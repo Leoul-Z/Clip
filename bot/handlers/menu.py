@@ -221,13 +221,6 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
                 text,
                 reply_markup=get_back_keyboard(),
             )
-        elif data == "menu_check_user":
-            await state.set_state(BotStates.inspecting_user)
-            await callback.message.edit_text(
-                "🔍 <b>Check User Data</b>\n\n"
-                "Please enter the Telegram username of the user you want to check (e.g., <code>@username</code>):",
-                reply_markup=get_back_keyboard(),
-            )
         elif data == "sub_new":
             user_socials = await db.get_user_social_accounts_full(chat_id)
             if not user_socials:
