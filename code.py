@@ -2,10 +2,12 @@ import asyncio
 import base64
 import hashlib
 import html
+import json
 import logging
 import os
 from contextlib import suppress
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from decimal import Decimal
 
 import aiohttp
 from aiohttp import web
@@ -30,6 +32,20 @@ ADMIN_IDS = [
     int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip().isdigit()
 ]
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "").strip()
+ADMIN_PORTAL_PASSWORD = os.getenv("ADMIN_PORTAL_PASSWORD", "admin123")
+ADMIN_TOKEN_SECRET = os.getenv("ADMIN_TOKEN_SECRET", "clipper_portal_secret_key_882")
+
+bot_instance: Bot | None = None
+
+def get_admin_token() -> str:
+    return hashlib.sha256(f"{ADMIN_PORTAL_PASSWORD}:{ADMIN_TOKEN_SECRET}".encode()).hexdigest()
+
+def json_serialize(obj):
+    if isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -788,6 +804,250 @@ class Database:
                         {"telegram_username": r[0], "views": r[1], "money": r[2]}
                         for r in rows
                     ]
+
+    async def get_admin_stats(self) -> dict:
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("""
+                    SELECT
+                        (SELECT COUNT(*) FROM users) AS total_users,
+                        (SELECT COUNT(*) FROM submissions) AS total_submissions,
+                        (SELECT COUNT(*) FROM submissions WHERE status = 'pending') AS pending_submissions,
+                        (SELECT COUNT(*) FROM submissions WHERE status = 'under_review') AS under_review_submissions,
+                        (SELECT COUNT(*) FROM submissions WHERE status = 'approved') AS approved_submissions,
+                        (SELECT COUNT(*) FROM submissions WHERE status = 'rejected') AS rejected_submissions,
+                        (SELECT COALESCE(SUM(views), 0)::BIGINT FROM submissions WHERE status = 'approved') AS total_views,
+                        (SELECT COALESCE(SUM(payment_amount), 0.0)::FLOAT FROM submissions WHERE status = 'approved') AS total_payments,
+                        (SELECT COUNT(*) FROM social_accounts) AS total_social_accounts
+                """)
+                return dict(row) if row else {}
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute("""
+                    SELECT
+                        (SELECT COUNT(*) FROM users) AS total_users,
+                        (SELECT COUNT(*) FROM submissions) AS total_submissions,
+                        (SELECT COUNT(*) FROM submissions WHERE status = 'pending') AS pending_submissions,
+                        (SELECT COUNT(*) FROM submissions WHERE status = 'under_review') AS under_review_submissions,
+                        (SELECT COUNT(*) FROM submissions WHERE status = 'approved') AS approved_submissions,
+                        (SELECT COUNT(*) FROM submissions WHERE status = 'rejected') AS rejected_submissions,
+                        (SELECT COALESCE(SUM(views), 0) FROM submissions WHERE status = 'approved') AS total_views,
+                        (SELECT COALESCE(SUM(payment_amount), 0.0) FROM submissions WHERE status = 'approved') AS total_payments,
+                        (SELECT COUNT(*) FROM social_accounts) AS total_social_accounts
+                """) as cur:
+                    row = await cur.fetchone()
+                    if row:
+                        return {
+                            "total_users": row[0],
+                            "total_submissions": row[1],
+                            "pending_submissions": row[2],
+                            "under_review_submissions": row[3],
+                            "approved_submissions": row[4],
+                            "rejected_submissions": row[5],
+                            "total_views": row[6],
+                            "total_payments": row[7],
+                            "total_social_accounts": row[8],
+                        }
+                    return {}
+
+    async def get_admin_users(self) -> list[dict]:
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                user_rows = await conn.fetch("""
+                    SELECT 
+                        u.id,
+                        u.chat_id,
+                        u.telegram_username,
+                        u.payment_details,
+                        u.created_at,
+                        COALESCE(SUM(s.views), 0)::INTEGER AS views,
+                        COALESCE(SUM(s.payment_amount), 0.0)::FLOAT AS money,
+                        (SELECT COUNT(*) FROM submissions sub WHERE sub.user_id = u.id) AS submission_count
+                    FROM users u
+                    LEFT JOIN submissions s ON s.user_id = u.id AND s.status = 'approved'
+                    GROUP BY u.id, u.chat_id, u.telegram_username, u.payment_details, u.created_at
+                    ORDER BY u.id DESC
+                """)
+                social_rows = await conn.fetch("""
+                    SELECT id, user_id, platform, handle, password_encrypted, created_at
+                    FROM social_accounts
+                    ORDER BY id ASC
+                """)
+                user_list = [dict(r) for r in user_rows]
+                social_list = [dict(r) for r in social_rows]
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute("""
+                    SELECT 
+                        u.id,
+                        u.chat_id,
+                        u.telegram_username,
+                        u.payment_details,
+                        u.created_at,
+                        COALESCE(SUM(s.views), 0) AS views,
+                        COALESCE(SUM(s.payment_amount), 0.0) AS money,
+                        (SELECT COUNT(*) FROM submissions sub WHERE sub.user_id = u.id) AS submission_count
+                    FROM users u
+                    LEFT JOIN submissions s ON s.user_id = u.id AND s.status = 'approved'
+                    GROUP BY u.id, u.chat_id, u.telegram_username, u.payment_details, u.created_at
+                    ORDER BY u.id DESC
+                """) as cur:
+                    u_tuples = await cur.fetchall()
+                    user_list = [
+                        {
+                            "id": r[0], "chat_id": r[1], "telegram_username": r[2],
+                            "payment_details": r[3], "created_at": r[4], "views": r[5],
+                            "money": r[6], "submission_count": r[7]
+                        }
+                        for r in u_tuples
+                    ]
+                async with db.execute("SELECT id, user_id, platform, handle, password_encrypted, created_at FROM social_accounts ORDER BY id ASC") as cur:
+                    s_tuples = await cur.fetchall()
+                    social_list = [
+                        {"id": r[0], "user_id": r[1], "platform": r[2], "handle": r[3], "password_encrypted": r[4], "created_at": r[5]}
+                        for r in s_tuples
+                    ]
+
+        socials_by_user = {}
+        for s in social_list:
+            uid = s["user_id"]
+            if uid not in socials_by_user:
+                socials_by_user[uid] = []
+            decrypted_pass = decrypt_password(s.get("password_encrypted"))
+            socials_by_user[uid].append({
+                "id": s["id"],
+                "platform": s["platform"],
+                "handle": s["handle"],
+                "password": decrypted_pass,
+                "password_encrypted": s.get("password_encrypted"),
+                "created_at": s.get("created_at"),
+            })
+
+        res = []
+        for u in user_list:
+            u["social_accounts"] = socials_by_user.get(u["id"], [])
+            res.append(u)
+        return res
+
+    async def get_admin_submissions(self) -> list[dict]:
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("""
+                    SELECT 
+                        s.id,
+                        s.user_id,
+                        u.chat_id,
+                        u.telegram_username,
+                        u.payment_details,
+                        s.social_account_id,
+                        sa.platform,
+                        sa.handle,
+                        s.link,
+                        s.caption,
+                        s.views,
+                        COALESCE(s.payment_amount, 0.0)::FLOAT AS payment_amount,
+                        s.status,
+                        s.submitted_at
+                    FROM submissions s
+                    JOIN users u ON s.user_id = u.id
+                    JOIN social_accounts sa ON s.social_account_id = sa.id
+                    ORDER BY s.id DESC
+                """)
+                return [dict(r) for r in rows]
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute("""
+                    SELECT 
+                        s.id,
+                        s.user_id,
+                        u.chat_id,
+                        u.telegram_username,
+                        u.payment_details,
+                        s.social_account_id,
+                        sa.platform,
+                        sa.handle,
+                        s.link,
+                        s.caption,
+                        s.views,
+                        COALESCE(s.payment_amount, 0.0) AS payment_amount,
+                        s.status,
+                        s.submitted_at
+                    FROM submissions s
+                    JOIN users u ON s.user_id = u.id
+                    JOIN social_accounts sa ON s.social_account_id = sa.id
+                    ORDER BY s.id DESC
+                """) as cur:
+                    rows = await cur.fetchall()
+                    return [
+                        {
+                            "id": r[0], "user_id": r[1], "chat_id": r[2],
+                            "telegram_username": r[3], "payment_details": r[4],
+                            "social_account_id": r[5], "platform": r[6], "handle": r[7],
+                            "link": r[8], "caption": r[9], "views": r[10],
+                            "payment_amount": r[11], "status": r[12], "submitted_at": r[13]
+                        }
+                        for r in rows
+                    ]
+
+    async def admin_update_submission(
+        self,
+        submission_id: int,
+        views: int | None = None,
+        payment_amount: float | None = None,
+        status: str | None = None,
+    ) -> dict | None:
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("""
+                    UPDATE submissions
+                    SET 
+                        views = COALESCE($1, views),
+                        payment_amount = COALESCE($2, payment_amount),
+                        status = COALESCE($3, status)
+                    WHERE id = $4
+                    RETURNING 
+                        id, user_id, link, caption, views, payment_amount, status, submitted_at,
+                        (SELECT chat_id FROM users WHERE id = submissions.user_id) AS chat_id,
+                        (SELECT telegram_username FROM users WHERE id = submissions.user_id) AS telegram_username
+                """, views, payment_amount, status, submission_id)
+                return dict(row) if row else None
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                updates = []
+                params = []
+                if views is not None:
+                    updates.append("views = ?")
+                    params.append(views)
+                if payment_amount is not None:
+                    updates.append("payment_amount = ?")
+                    params.append(payment_amount)
+                if status is not None:
+                    updates.append("status = ?")
+                    params.append(status)
+                if updates:
+                    params.append(submission_id)
+                    await db.execute(f"UPDATE submissions SET {', '.join(updates)} WHERE id = ?", params)
+                    await db.commit()
+
+                async with db.execute("""
+                    SELECT s.id, s.user_id, s.link, s.caption, s.views, s.payment_amount, s.status, s.submitted_at,
+                           u.chat_id, u.telegram_username
+                    FROM submissions s
+                    JOIN users u ON s.user_id = u.id
+                    WHERE s.id = ?
+                """, (submission_id,)) as cur:
+                    row = await cur.fetchone()
+                    if not row:
+                        return None
+                    return {
+                        "id": row[0], "user_id": row[1], "link": row[2], "caption": row[3],
+                        "views": row[4], "payment_amount": row[5], "status": row[6],
+                        "submitted_at": row[7], "chat_id": row[8], "telegram_username": row[9]
+                    }
 
 db = Database(DATABASE_URL)
 
@@ -1785,25 +2045,170 @@ async def set_views_command(message: types.Message):
     except Exception as e:
         logging.warning(f"Could not notify user {user_chat_id} about views update: {e}")
 
-# --- DUMMY WEB SERVER FOR RENDER FREE TIER ---
-async def handle_ping(request):
+# --- ADMIN PORTAL WEB SERVER & REST API ---
+def check_admin_auth(request: web.Request) -> bool:
+    auth_header = request.headers.get("Authorization", "")
+    expected = get_admin_token()
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+        if token == expected:
+            return True
+    token_param = request.query.get("token", "").strip()
+    return token_param == expected
+
+async def handle_ping(request: web.Request):
     return web.Response(text="Bot is alive!")
+
+async def handle_index(request: web.Request):
+    index_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Frontend", "index.html")
+    if os.path.exists(index_file):
+        return web.FileResponse(index_file)
+    return web.Response(text="Clipper Admin Portal - Frontend not found", status=404)
+
+async def api_admin_login(request: web.Request):
+    try:
+        data = await request.json()
+        password = data.get("password", "")
+        if password == ADMIN_PORTAL_PASSWORD:
+            return web.json_response({"success": True, "token": get_admin_token()})
+        return web.json_response({"error": "Invalid admin password"}, status=401)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=400)
+
+async def api_admin_me(request: web.Request):
+    if not check_admin_auth(request):
+        return web.json_response({"error": "Unauthorized"}, status=401)
+    return web.json_response({"authenticated": True})
+
+async def api_admin_stats(request: web.Request):
+    if not check_admin_auth(request):
+        return web.json_response({"error": "Unauthorized"}, status=401)
+    stats = await db.get_admin_stats()
+    return web.json_response(stats, dumps=lambda x: json.dumps(x, default=json_serialize))
+
+async def api_admin_users(request: web.Request):
+    if not check_admin_auth(request):
+        return web.json_response({"error": "Unauthorized"}, status=401)
+    users = await db.get_admin_users()
+    return web.json_response(users, dumps=lambda x: json.dumps(x, default=json_serialize))
+
+async def api_admin_submissions(request: web.Request):
+    if not check_admin_auth(request):
+        return web.json_response({"error": "Unauthorized"}, status=401)
+    submissions = await db.get_admin_submissions()
+    return web.json_response(submissions, dumps=lambda x: json.dumps(x, default=json_serialize))
+
+async def api_admin_update_submission(request: web.Request):
+    if not check_admin_auth(request):
+        return web.json_response({"error": "Unauthorized"}, status=401)
+    try:
+        sub_id = int(request.match_info["id"])
+        data = await request.json()
+        views = data.get("views")
+        payment_amount = data.get("payment_amount")
+        status = data.get("status")
+        notify_user = data.get("notify_user", True)
+
+        res = await db.admin_update_submission(
+            sub_id,
+            views=int(views) if views is not None else None,
+            payment_amount=float(payment_amount) if payment_amount is not None else None,
+            status=status,
+        )
+        if not res:
+            return web.json_response({"error": f"Submission #{sub_id} not found"}, status=404)
+
+        # Notify user on Telegram if requested
+        if notify_user and bot_instance and res.get("chat_id"):
+            try:
+                caption_part = f"📝 <b>Caption:</b> <i>{html.escape(res['caption'])}</i>\n" if res.get("caption") else ""
+                views_val = res.get("views", 0)
+                pay_val = float(res.get("payment_amount", 0.0))
+                status_title = str(res.get("status", "approved")).replace("_", " ").title()
+
+                await bot_instance.send_message(
+                    res["chat_id"],
+                    f"📢 <b>Submission #{sub_id} Status Updated!</b>\n\n"
+                    f"📌 <b>Status:</b> <b>{status_title}</b>\n"
+                    f"🔗 <b>Link:</b> {html.escape(res.get('link', ''))}\n"
+                    f"{caption_part}"
+                    f"👁 <b>Views:</b> {views_val:,}\n"
+                    f"💰 <b>Payment:</b> <b>${pay_val:.2f}</b>\n\n"
+                    f"Check your updated earnings under <b>📊 Stats</b>.",
+                    disable_web_page_preview=True,
+                )
+            except Exception as e:
+                logging.warning(f"Could not notify user {res['chat_id']} on Telegram: {e}")
+
+        return web.json_response({"success": True, "submission": res}, dumps=lambda x: json.dumps(x, default=json_serialize))
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=400)
+
+async def api_admin_update_user_payment(request: web.Request):
+    if not check_admin_auth(request):
+        return web.json_response({"error": "Unauthorized"}, status=401)
+    try:
+        chat_id = int(request.match_info["chat_id"])
+        data = await request.json()
+        payment_details = data.get("payment_details", "").strip()
+        await db.update_payment_info(chat_id, payment_details)
+        return web.json_response({"success": True})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=400)
+
+async def api_admin_update_user_stats(request: web.Request):
+    if not check_admin_auth(request):
+        return web.json_response({"error": "Unauthorized"}, status=401)
+    try:
+        chat_id = int(request.match_info["chat_id"])
+        data = await request.json()
+        views = int(data.get("views", 0))
+        money = float(data.get("money", 0.0))
+        user = await db.get_user(chat_id)
+        if not user:
+            return web.json_response({"error": "User not found"}, status=404)
+        target_username = user.get("telegram_username") or f"user_{chat_id}"
+        await db.update_user_stats(target_username, views, money)
+        return web.json_response({"success": True})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=400)
 
 async def start_web_server():
     app = web.Application()
-    app.router.add_get("/", handle_ping)
+    app.router.add_get("/ping", handle_ping)
+    app.router.add_get("/", handle_index)
+    app.router.add_get("/admin", handle_index)
+
+    # REST API routes
+    app.router.add_post("/api/admin/login", api_admin_login)
+    app.router.add_get("/api/admin/me", api_admin_me)
+    app.router.add_get("/api/admin/stats", api_admin_stats)
+    app.router.add_get("/api/admin/users", api_admin_users)
+    app.router.add_get("/api/admin/submissions", api_admin_submissions)
+    app.router.add_post("/api/admin/submissions/{id}/update", api_admin_update_submission)
+    app.router.add_post("/api/admin/users/{chat_id}/update-payment", api_admin_update_user_payment)
+    app.router.add_post("/api/admin/users/{chat_id}/update-stats", api_admin_update_user_stats)
+
+    # Static assets
+    frontend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Frontend")
+    if os.path.exists(frontend_dir):
+        app.router.add_static("/static", path=frontend_dir, name="static")
+
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.environ.get("PORT", 8080))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
+    logging.info(f"🌐 Admin Portal & Web Server running on port {port}")
     return runner
 
 # --- MAIN SETUP ---
 async def main():
+    global bot_instance
     await db.connect()
-    runner = await start_web_server()
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    bot_instance = bot
+    runner = await start_web_server()
     dp = Dispatcher()
 
     # Middlewares: Block users if they changed their Telegram username
