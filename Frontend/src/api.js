@@ -94,4 +94,14 @@ export const AdminAPI = {
     const res = await api.post('/api/admin/send-message', data);
     return res.data;
   },
+
+  // Platform Payout Rates
+  getRates: async () => {
+    const res = await api.get('/api/admin/rates');
+    return res.data;
+  },
+  updateRates: async (rates) => {
+    const res = await api.put('/api/admin/rates', { rates });
+    return res.data;
+  },
 };

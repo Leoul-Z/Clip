@@ -2,6 +2,7 @@ from aiogram import Dispatcher, F
 from aiogram.filters import Command
 from bot.handlers.admin import (
     info_command,
+    rates_command,
     set_pay_command,
     set_views_command,
     update_stats_command,
@@ -33,6 +34,7 @@ def register_all_handlers(dp: Dispatcher):
     dp.message.register(set_pay_command, Command("setpay"))
     dp.message.register(set_views_command, Command("setviews"))
     dp.message.register(info_command, Command("info"), Command("user"))
+    dp.message.register(rates_command, Command("rates"))
 
     # FSM Message Handlers
     dp.message.register(process_username, BotStates.waiting_for_username)

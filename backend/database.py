@@ -15,8 +15,41 @@ class BackendDatabase:
             if dsn.startswith("postgres://"):
                 dsn = dsn.replace("postgres://", "postgresql://", 1)
             self.pool = await asyncpg.create_pool(dsn, min_size=1, max_size=10)
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS platform_rates (
+                        platform      VARCHAR(20) PRIMARY KEY,
+                        rate_per_1000 NUMERIC(10,2) NOT NULL DEFAULT 50.00,
+                        updated_at    TIMESTAMP NOT NULL DEFAULT NOW()
+                    );
+                    INSERT INTO platform_rates (platform, rate_per_1000)
+                    VALUES 
+                        ('youtube', 60.00),
+                        ('tiktok', 60.00),
+                        ('twitter', 45.00),
+                        ('instagram', 40.00)
+                    ON CONFLICT (platform) DO NOTHING;
+                """)
             logging.info("Backend connected to PostgreSQL database.")
         else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute("""
+                    CREATE TABLE IF NOT EXISTS platform_rates (
+                        platform      TEXT PRIMARY KEY,
+                        rate_per_1000 REAL NOT NULL DEFAULT 50.0,
+                        updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                await db.execute("""
+                    INSERT OR IGNORE INTO platform_rates (platform, rate_per_1000)
+                    VALUES 
+                        ('youtube', 60.0),
+                        ('tiktok', 60.0),
+                        ('twitter', 45.0),
+                        ('instagram', 40.0);
+                """)
+                await db.commit()
             logging.info("Backend using SQLite fallback.")
 
     async def close(self):
@@ -452,5 +485,74 @@ class BackendDatabase:
                 async with db.execute("SELECT DISTINCT chat_id FROM users WHERE chat_id IS NOT NULL") as cur:
                     rows = await cur.fetchall()
                     return [r[0] for r in rows]
+
+    # --- PLATFORM RATES ---
+    async def get_platform_rates(self) -> dict[str, float]:
+        defaults = {"youtube": 60.0, "tiktok": 60.0, "twitter": 45.0, "instagram": 40.0}
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT platform, rate_per_1000::FLOAT FROM platform_rates")
+                if rows:
+                    for r in rows:
+                        defaults[r["platform"].lower()] = float(r["rate_per_1000"])
+                return defaults
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute("SELECT platform, rate_per_1000 FROM platform_rates") as cur:
+                    rows = await cur.fetchall()
+                    if rows:
+                        for r in rows:
+                            defaults[r[0].lower()] = float(r[1])
+                return defaults
+
+    async def get_platform_rate(self, platform: str | None) -> float:
+        rates = await self.get_platform_rates()
+        p = (platform or "").lower().strip()
+        if "youtube" in p or "youtu" in p:
+            return rates.get("youtube", 60.0)
+        if "tiktok" in p:
+            return rates.get("tiktok", 60.0)
+        if "twitter" in p or p == "x":
+            return rates.get("twitter", 45.0)
+        if "instagram" in p or p == "ig":
+            return rates.get("instagram", 40.0)
+        return rates.get(p, 50.0)
+
+    async def update_platform_rates(self, rates: dict[str, float]) -> dict[str, float]:
+        current = await self.get_platform_rates()
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                for plat, rate in rates.items():
+                    plat_clean = plat.lower().strip()
+                    try:
+                        rate_val = float(rate)
+                    except (ValueError, TypeError):
+                        continue
+                    await conn.execute("""
+                        INSERT INTO platform_rates (platform, rate_per_1000, updated_at)
+                        VALUES ($1, $2, NOW())
+                        ON CONFLICT (platform)
+                        DO UPDATE SET rate_per_1000 = EXCLUDED.rate_per_1000, updated_at = NOW()
+                    """, plat_clean, rate_val)
+                    current[plat_clean] = rate_val
+                return current
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                for plat, rate in rates.items():
+                    plat_clean = plat.lower().strip()
+                    try:
+                        rate_val = float(rate)
+                    except (ValueError, TypeError):
+                        continue
+                    await db.execute("""
+                        INSERT INTO platform_rates (platform, rate_per_1000, updated_at)
+                        VALUES (?, ?, CURRENT_TIMESTAMP)
+                        ON CONFLICT(platform) DO UPDATE SET rate_per_1000 = excluded.rate_per_1000, updated_at = CURRENT_TIMESTAMP
+                    """, (plat_clean, rate_val))
+                    current[plat_clean] = rate_val
+                await db.commit()
+                return current
 
 backend_db = BackendDatabase(DATABASE_URL)

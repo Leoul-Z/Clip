@@ -6,6 +6,7 @@ import SubmissionsManager from './components/SubmissionsManager';
 import EditUserModal from './components/EditUserModal';
 import EditSocialModal from './components/EditSocialModal';
 import EditSubmissionModal from './components/EditSubmissionModal';
+import RatesModal from './components/RatesModal';
 import SendMessageModal from './components/SendMessageModal';
 import LoginModal from './components/LoginModal';
 import Toast from './components/Toast';
@@ -31,6 +32,7 @@ export default function App() {
   const [stats, setStats] = useState({});
   const [users, setUsers] = useState([]);
   const [submissions, setSubmissions] = useState([]);
+  const [rates, setRates] = useState({ youtube: 60, tiktok: 60, twitter: 45, instagram: 40 });
   const [toasts, setToasts] = useState([]);
 
   // Modal states
@@ -43,6 +45,8 @@ export default function App() {
 
   const [editingSubmission, setEditingSubmission] = useState(null);
   const [isSubModalOpen, setIsSubModalOpen] = useState(false);
+
+  const [isRatesModalOpen, setIsRatesModalOpen] = useState(false);
 
   // Toast trigger
   const addToast = (message, type = 'success') => {
@@ -65,14 +69,16 @@ export default function App() {
     if (!localStorage.getItem('clipper_admin_token')) return;
     setIsRefreshing(true);
     try {
-      const [sData, uData, subData] = await Promise.all([
+      const [sData, uData, subData, rData] = await Promise.all([
         AdminAPI.getStats(),
         AdminAPI.getUsers(),
         AdminAPI.getSubmissions(),
+        AdminAPI.getRates().catch(() => null),
       ]);
       setStats(sData || {});
       setUsers(uData || []);
       setSubmissions(subData || []);
+      if (rData?.rates) setRates(rData.rates);
       setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err) {
       console.error('Load data error:', err);
@@ -230,12 +236,24 @@ export default function App() {
     setActiveTab('submissions');
   };
 
+  const handleSaveRates = async (newRates) => {
+    try {
+      const res = await AdminAPI.updateRates(newRates);
+      if (res?.rates) setRates(res.rates);
+      addToast('Platform payout rates updated successfully!', 'success');
+    } catch (err) {
+      addToast('Failed to update platform rates.', 'error');
+      throw err;
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50 text-neutral-900">
       <Navbar
         onRefresh={loadData}
         onLogout={handleLogout}
         onOpenBroadcast={handleOpenBroadcast}
+        onOpenRates={() => setIsRatesModalOpen(true)}
         isRefreshing={isRefreshing}
       />
 
@@ -365,9 +383,17 @@ export default function App() {
       <EditSubmissionModal
         isOpen={isSubModalOpen}
         submission={editingSubmission}
+        rates={rates}
         onClose={() => setIsSubModalOpen(false)}
         onSave={handleSaveSubmission}
         onDelete={handleDeleteSubmission}
+      />
+
+      <RatesModal
+        isOpen={isRatesModalOpen}
+        rates={rates}
+        onClose={() => setIsRatesModalOpen(false)}
+        onSave={handleSaveRates}
       />
 
       {/* Toast Alerts */}

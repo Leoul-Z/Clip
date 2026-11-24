@@ -70,6 +70,9 @@ class SendMessageRequest(BaseModel):
     chat_id: Optional[int] = None
     message: str
 
+class UpdateRatesRequest(BaseModel):
+    rates: dict[str, float]
+
 # --- PUBLIC ROUTES ---
 @app.get("/health")
 @app.get("/ping")
@@ -225,6 +228,17 @@ async def send_message_endpoint(body: SendMessageRequest, _: bool = Depends(get_
             "total": len(chat_ids),
             "target": "all",
         }
+
+# --- PLATFORM RATES ---
+@app.get("/api/admin/rates")
+async def get_platform_rates_endpoint(_: bool = Depends(get_current_admin)):
+    rates = await backend_db.get_platform_rates()
+    return {"rates": rates}
+
+@app.put("/api/admin/rates")
+async def update_platform_rates_endpoint(body: UpdateRatesRequest, _: bool = Depends(get_current_admin)):
+    updated = await backend_db.update_platform_rates(body.rates)
+    return {"success": True, "rates": updated}
 
 # --- OPTIONAL STATIC SERVING OF REACT DIST ---
 frontend_dist = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Frontend", "dist")

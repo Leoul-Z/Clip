@@ -141,19 +141,46 @@ async def set_views_command(message: types.Message):
 
     user_chat_id = res["chat_id"]
     sub_link = res["link"]
+    plat = res.get("platform") or "youtube"
+    rate = await db.get_platform_rate(plat)
+    auto_pay = round((views / 1000.0) * rate, 2)
+
+    # Automatically set payment amount based on platform rate and approve
+    await db.update_submission_payment(sub_id, auto_pay, views=views)
 
     await message.answer(
-        f"✅ Views for Submission <code>#{sub_id}</code> updated to <b>{views:,}</b>!"
+        f"✅ Views for Submission <code>#{sub_id}</code> updated to <b>{views:,}</b>!\n"
+        f"💰 Payment auto-calculated at <b>{rate:,.2f} ETB/1k views</b> ({plat.title()}): <b>{auto_pay:,.2f} ETB</b> (Status: Approved)"
     )
 
     try:
         await message.bot.send_message(
             user_chat_id,
-            f"📊 <b>Submission Views Updated!</b>\n\n"
-            f"Your submission (ID: #{sub_id}) has been updated with <b>{views:,}</b> views!\n"
-            f"🔗 <b>Link:</b> {html.escape(sub_link)}\n\n"
-            f"Check your updated stats under <b>📊 Stats</b>.",
+            f"🎉 <b>Submission Verified & Paid!</b>\n\n"
+            f"Your submission (ID: #{sub_id}) on <b>{plat.title()}</b> has been verified!\n"
+            f"🔗 <b>Link:</b> {html.escape(sub_link)}\n"
+            f"👁 <b>Views:</b> {views:,}\n"
+            f"💰 <b>Earned:</b> <b>{auto_pay:,.2f} ETB</b> ({rate:,.2f} ETB/1,000 views)\n\n"
+            f"Check your updated balance under <b>📊 Stats</b>.",
             disable_web_page_preview=True,
         )
     except Exception as e:
         logging.warning(f"Could not notify user {user_chat_id} about views update: {e}")
+
+async def rates_command(message: types.Message):
+    rates = await db.get_platform_rates()
+    yt = rates.get("youtube", 60.0)
+    tt = rates.get("tiktok", 60.0)
+    tw = rates.get("twitter", 45.0)
+    ig = rates.get("instagram", 40.0)
+
+    rates_text = (
+        "💰 <b>Official Campaign Payout Rates</b>\n"
+        "<i>Earnings are paid in Ethiopian Birr (ETB) per 1,000 verified views:</i>\n\n"
+        f"📺 <b>YouTube:</b> <code>{yt:,.2f} ETB</code> / 1,000 views\n"
+        f"🎵 <b>TikTok:</b> <code>{tt:,.2f} ETB</code> / 1,000 views\n"
+        f"🐦 <b>Twitter / X:</b> <code>{tw:,.2f} ETB</code> / 1,000 views\n"
+        f"📸 <b>Instagram:</b> <code>{ig:,.2f} ETB</code> / 1,000 views\n\n"
+        "💡 <i>Admins can adjust future price ranges from the Web Admin Portal.</i>"
+    )
+    await message.answer(rates_text)

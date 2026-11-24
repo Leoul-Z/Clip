@@ -221,6 +221,29 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
                 text,
                 reply_markup=get_back_keyboard(),
             )
+        elif data == "menu_rates":
+            rates = await db.get_platform_rates()
+            yt = rates.get("youtube", 60.0)
+            tt = rates.get("tiktok", 60.0)
+            tw = rates.get("twitter", 45.0)
+            ig = rates.get("instagram", 40.0)
+
+            rates_text = (
+                "💰 <b>Official Campaign Payout Rates</b>\n"
+                "<i>Earnings are paid in Ethiopian Birr (ETB) per 1,000 verified views:</i>\n\n"
+                f"📺 <b>YouTube:</b> <code>{yt:,.2f} ETB</code> / 1,000 views\n"
+                f"🎵 <b>TikTok:</b> <code>{tt:,.2f} ETB</code> / 1,000 views\n"
+                f"🐦 <b>Twitter / X:</b> <code>{tw:,.2f} ETB</code> / 1,000 views\n"
+                f"📸 <b>Instagram:</b> <code>{ig:,.2f} ETB</code> / 1,000 views\n\n"
+                "💡 <b>How it works:</b>\n"
+                "• Link your accounts under <b>📱 Link Social Account</b>\n"
+                "• Post clips and submit video links under <b>🔗 Submission Links</b>\n"
+                "• Payout is automatically calculated based on verified views!"
+            )
+            await callback.message.edit_text(
+                rates_text,
+                reply_markup=get_back_keyboard(),
+            )
         elif data == "sub_new":
             user_socials = await db.get_user_social_accounts_full(chat_id)
             if not user_socials:
