@@ -1,21 +1,41 @@
 import React, { useState } from 'react';
 import { Search, X, Copy, PenSquare, Share2 } from 'lucide-react';
 
-export default function SubmissionsManager({ submissions, onEditSubmission, onCopy }) {
+export default function SubmissionsManager({
+  submissions,
+  onEditSubmission,
+  onCopy,
+  selectedUser = null,
+  onClearSelectedUser,
+}) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [platformFilter, setPlatformFilter] = useState('all');
   const [search, setSearch] = useState('');
 
-  // Status counts
+  // Pre-filter submissions by selected user if active
+  const userScopedSubs = selectedUser
+    ? submissions.filter((s) => {
+        const targetChatId = selectedUser.chat_id;
+        const targetUname = (selectedUser.telegram_username || '').replace(/^@/, '').toLowerCase();
+        const subUname = (s.telegram_username || '').replace(/^@/, '').toLowerCase();
+
+        return (
+          (targetChatId && s.chat_id === targetChatId) ||
+          (targetUname && subUname === targetUname)
+        );
+      })
+    : submissions;
+
+  // Status counts based on the active user scope
   const counts = {
-    all: submissions.length,
-    pending: submissions.filter((s) => s.status === 'pending').length,
-    under_review: submissions.filter((s) => s.status === 'under_review').length,
-    approved: submissions.filter((s) => s.status === 'approved').length,
-    rejected: submissions.filter((s) => s.status === 'rejected').length,
+    all: userScopedSubs.length,
+    pending: userScopedSubs.filter((s) => s.status === 'pending').length,
+    under_review: userScopedSubs.filter((s) => s.status === 'under_review').length,
+    approved: userScopedSubs.filter((s) => s.status === 'approved').length,
+    rejected: userScopedSubs.filter((s) => s.status === 'rejected').length,
   };
 
-  const filteredSubs = submissions.filter((s) => {
+  const filteredSubs = userScopedSubs.filter((s) => {
     if (statusFilter !== 'all' && s.status !== statusFilter) return false;
     if (platformFilter !== 'all' && (s.platform || '').toLowerCase() !== platformFilter.toLowerCase()) return false;
 
@@ -82,6 +102,30 @@ export default function SubmissionsManager({ submissions, onEditSubmission, onCo
 
   return (
     <section className="space-y-4">
+      {/* Active Single User Scope Banner */}
+      {selectedUser && (
+        <div className="flex items-center justify-between px-4 py-3 rounded-2xl bg-brand-50 border border-brand-200 text-brand-900 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-brand-500 animate-pulse"></span>
+            <span className="text-xs font-medium">
+              Showing exclusively clips for clipper:{' '}
+              <strong className="text-brand-700 font-bold">
+                {selectedUser.telegram_username || `Chat ID: ${selectedUser.chat_id}`}
+              </strong>{' '}
+              <span className="text-neutral-500 font-normal">({filteredSubs.length} clips found)</span>
+            </span>
+          </div>
+          <button
+            onClick={onClearSelectedUser}
+            className="px-3 py-1.5 rounded-xl bg-white hover:bg-neutral-100 text-neutral-700 text-xs font-semibold border border-brand-200 shadow-sm transition flex items-center gap-1.5"
+            title="Clear filter to view all clippers' submissions"
+          >
+            <X className="w-3.5 h-3.5 text-neutral-500" />
+            <span>Clear Filter &amp; View All Clips</span>
+          </button>
+        </div>
+      )}
+
       {/* Toolbar & Filters */}
       <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm space-y-3">
         {/* Status Pills */}

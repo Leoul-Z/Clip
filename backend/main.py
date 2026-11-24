@@ -1,3 +1,4 @@
+import asyncio
 import html
 import logging
 import os
@@ -64,6 +65,10 @@ class UpdateSubmissionRequest(BaseModel):
     link: Optional[str] = None
     caption: Optional[str] = None
     notify_user: bool = True
+
+class SendMessageRequest(BaseModel):
+    chat_id: Optional[int] = None
+    message: str
 
 # --- PUBLIC ROUTES ---
 @app.get("/health")
@@ -179,6 +184,47 @@ async def update_submission(submission_id: int, body: UpdateSubmissionRequest, _
 async def delete_submission(submission_id: int, _: bool = Depends(get_current_admin)):
     success = await backend_db.delete_submission(submission_id)
     return {"success": success, "message": "Submission deleted"}
+
+# --- TELEGRAM MESSAGING & BROADCAST ---
+@app.post("/api/admin/send-message")
+async def send_message_endpoint(body: SendMessageRequest, _: bool = Depends(get_current_admin)):
+    msg = body.message.strip()
+    if not msg:
+        raise HTTPException(status_code=400, detail="Message content cannot be empty")
+
+    if body.chat_id is not None:
+        ok = await send_telegram_message(body.chat_id, msg)
+        if not ok:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Failed to deliver message to Telegram user (Chat ID: {body.chat_id}). Verify bot is started and not blocked."
+            )
+        return {"success": True, "sent": 1, "failed": 0, "total": 1, "target": "single"}
+    else:
+        chat_ids = await backend_db.get_all_chat_ids()
+        if not chat_ids:
+            return {"success": True, "sent": 0, "failed": 0, "total": 0, "target": "all"}
+
+        sent = 0
+        failed = 0
+        for cid in chat_ids:
+            try:
+                ok = await send_telegram_message(cid, msg)
+                if ok:
+                    sent += 1
+                else:
+                    failed += 1
+            except Exception:
+                failed += 1
+            await asyncio.sleep(0.04)
+
+        return {
+            "success": True,
+            "sent": sent,
+            "failed": failed,
+            "total": len(chat_ids),
+            "target": "all",
+        }
 
 # --- OPTIONAL STATIC SERVING OF REACT DIST ---
 frontend_dist = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Frontend", "dist")

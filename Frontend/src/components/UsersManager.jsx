@@ -7,7 +7,9 @@ import {
   Edit2,
   Plus,
   X,
-  Share2
+  Share2,
+  Send,
+  MessageSquare
 } from 'lucide-react';
 
 export default function UsersManager({
@@ -16,6 +18,7 @@ export default function UsersManager({
   onEditSocial,
   onAddSocial,
   onViewSubmissions,
+  onSendMessage,
   onCopy,
 }) {
   const [search, setSearch] = useState('');
@@ -324,9 +327,9 @@ export default function UsersManager({
                       {/* Clips Count */}
                       <td className="px-4 py-4 text-center">
                         <button
-                          onClick={() => onViewSubmissions(rawUsername)}
-                          className="px-2.5 py-1 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-semibold text-xs border border-neutral-200 transition"
-                          title="View user submissions"
+                          onClick={() => onViewSubmissions(u)}
+                          className="px-2.5 py-1 rounded-full bg-neutral-100 hover:bg-brand-50 hover:text-brand-700 text-neutral-800 font-semibold text-xs border border-neutral-200 transition"
+                          title="View only this user's clips"
                         >
                           {u.submission_count || 0}
                         </button>
@@ -336,6 +339,14 @@ export default function UsersManager({
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
+                            onClick={() => onSendMessage(u)}
+                            className="px-2.5 py-1.5 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold border border-brand-200 transition flex items-center gap-1 shadow-sm"
+                            title="Send direct Telegram message through the bot"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            <span>DM</span>
+                          </button>
+                          <button
                             onClick={() => onEditUser(u)}
                             className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-neutral-100 text-neutral-700 hover:text-neutral-900 text-xs font-medium border border-neutral-200 transition flex items-center gap-1 shadow-sm"
                             title="Edit User Data & Bank Info"
@@ -344,8 +355,9 @@ export default function UsersManager({
                             <span>Edit</span>
                           </button>
                           <button
-                            onClick={() => onViewSubmissions(rawUsername)}
-                            className="px-2.5 py-1.5 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold border border-brand-200 transition shadow-sm"
+                            onClick={() => onViewSubmissions(u)}
+                            className="px-2.5 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold shadow-sm transition"
+                            title="Filter and inspect only this user's clips"
                           >
                             Clips
                           </button>

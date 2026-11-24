@@ -88,4 +88,10 @@ export const AdminAPI = {
     const res = await api.delete(`/api/admin/submissions/${id}`);
     return res.data;
   },
+
+  // Telegram Messaging & Broadcast
+  sendMessage: async (data) => {
+    const res = await api.post('/api/admin/send-message', data);
+    return res.data;
+  },
 };

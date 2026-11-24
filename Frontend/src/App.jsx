@@ -6,6 +6,7 @@ import SubmissionsManager from './components/SubmissionsManager';
 import EditUserModal from './components/EditUserModal';
 import EditSocialModal from './components/EditSocialModal';
 import EditSubmissionModal from './components/EditSubmissionModal';
+import SendMessageModal from './components/SendMessageModal';
 import LoginModal from './components/LoginModal';
 import Toast from './components/Toast';
 import { AdminAPI } from './api';
@@ -18,6 +19,13 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdated, setLastUpdated] = useState('Just now');
+
+  // Single user submission filter state
+  const [selectedUserForSubmissions, setSelectedUserForSubmissions] = useState(null);
+
+  // Messaging modal state
+  const [messagingTargetUser, setMessagingTargetUser] = useState(null);
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
 
   // Data states
   const [stats, setStats] = useState({});
@@ -194,15 +202,49 @@ export default function App() {
     loadData();
   };
 
+  // --- TELEGRAM MESSAGING (SINGLE & BROADCAST) ---
+  const handleSendMessage = async (payload) => {
+    const res = await AdminAPI.sendMessage(payload);
+    if (res.target === 'single') {
+      addToast('Telegram message delivered successfully!', 'success');
+    } else {
+      addToast(
+        `Broadcast sent: ${res.sent} delivered, ${res.failed} failed out of ${res.total} clippers.`,
+        res.failed > 0 ? 'info' : 'success'
+      );
+    }
+  };
+
+  const handleOpenBroadcast = () => {
+    setMessagingTargetUser(null);
+    setIsMessageModalOpen(true);
+  };
+
+  const handleOpenUserMessage = (user) => {
+    setMessagingTargetUser(user);
+    setIsMessageModalOpen(true);
+  };
+
+  const handleViewUserSubmissions = (user) => {
+    setSelectedUserForSubmissions(user);
+    setActiveTab('submissions');
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50 text-neutral-900">
-      <Navbar onRefresh={loadData} onLogout={handleLogout} isRefreshing={isRefreshing} />
+      <Navbar
+        onRefresh={loadData}
+        onLogout={handleLogout}
+        onOpenBroadcast={handleOpenBroadcast}
+        isRefreshing={isRefreshing}
+      />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* KPI Metrics Banner */}
         <StatsCards
           stats={stats}
           onPendingClick={() => {
+            setSelectedUserForSubmissions(null);
             setActiveTab('submissions');
           }}
         />
@@ -226,7 +268,9 @@ export default function App() {
             </button>
 
             <button
-              onClick={() => setActiveTab('submissions')}
+              onClick={() => {
+                setActiveTab('submissions');
+              }}
               className={`px-4 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-2 ${
                 activeTab === 'submissions'
                   ? 'bg-brand-500 hover:bg-brand-600 text-white shadow-md shadow-brand-500/20'
@@ -238,6 +282,11 @@ export default function App() {
               <span className={`px-2 py-0.5 rounded-full text-xs ${activeTab === 'submissions' ? 'bg-white/20 text-white' : 'bg-neutral-100 text-neutral-600'}`}>
                 {submissions.length}
               </span>
+              {selectedUserForSubmissions && (
+                <span className="px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 text-[10px] font-bold border border-brand-200">
+                  Filtered: {selectedUserForSubmissions.telegram_username || selectedUserForSubmissions.chat_id}
+                </span>
+              )}
               {stats.pending_submissions > 0 && (
                 <span className="px-1.5 py-0.5 rounded-full bg-warning-100 text-warning-800 text-[10px] font-bold border border-warning-500/30">
                   {stats.pending_submissions}
@@ -268,9 +317,8 @@ export default function App() {
             onEditUser={handleEditUser}
             onEditSocial={handleEditSocial}
             onAddSocial={handleAddSocial}
-            onViewSubmissions={(uname) => {
-              setActiveTab('submissions');
-            }}
+            onViewSubmissions={handleViewUserSubmissions}
+            onSendMessage={handleOpenUserMessage}
             onCopy={copyToClipboard}
           />
         )}
@@ -281,12 +329,21 @@ export default function App() {
             submissions={submissions}
             onEditSubmission={handleEditSubmission}
             onCopy={copyToClipboard}
+            selectedUser={selectedUserForSubmissions}
+            onClearSelectedUser={() => setSelectedUserForSubmissions(null)}
           />
         )}
       </main>
 
       {/* MODALS */}
       <LoginModal isOpen={isLoginOpen} onLogin={handleLogin} />
+
+      <SendMessageModal
+        isOpen={isMessageModalOpen}
+        targetUser={messagingTargetUser}
+        onClose={() => setIsMessageModalOpen(false)}
+        onSend={handleSendMessage}
+      />
 
       <EditUserModal
         isOpen={isUserModalOpen}

@@ -1,7 +1,7 @@
 import React from 'react';
-import { Scissors, RefreshCw, LogOut } from 'lucide-react';
+import { Scissors, RefreshCw, LogOut, Send } from 'lucide-react';
 
-export default function Navbar({ onRefresh, onLogout, isRefreshing }) {
+export default function Navbar({ onRefresh, onLogout, onOpenBroadcast, isRefreshing }) {
   return (
     <header className="glass-nav sticky top-0 z-40 px-4 sm:px-6 py-3.5 border-b border-neutral-200">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -24,6 +24,15 @@ export default function Navbar({ onRefresh, onLogout, isRefreshing }) {
             <span className="w-2 h-2 rounded-full bg-success-500 animate-pulse"></span>
             <span>Live PostgreSQL</span>
           </div>
+
+          <button
+            onClick={onOpenBroadcast}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold border border-brand-200 transition shadow-sm"
+            title="Broadcast message to all clippers via Telegram bot"
+          >
+            <Send className="w-3.5 h-3.5 text-brand-600" />
+            <span className="hidden sm:inline">Broadcast DM</span>
+          </button>
 
           <button
             onClick={onRefresh}

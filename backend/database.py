@@ -440,4 +440,17 @@ class BackendDatabase:
                 await db.commit()
                 return True
 
+    async def get_all_chat_ids(self) -> list[int]:
+        """Returns distinct Telegram chat IDs for all registered clippers."""
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT DISTINCT chat_id FROM users WHERE chat_id IS NOT NULL")
+                return [r["chat_id"] for r in rows]
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute("SELECT DISTINCT chat_id FROM users WHERE chat_id IS NOT NULL") as cur:
+                    rows = await cur.fetchall()
+                    return [r[0] for r in rows]
+
 backend_db = BackendDatabase(DATABASE_URL)
