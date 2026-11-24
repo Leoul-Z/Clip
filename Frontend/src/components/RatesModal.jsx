@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, RotateCcw, Calculator, Coins, TrendingUp } from 'lucide-react';
 
 const DEFAULT_RATES = {
   youtube: 60.0,
@@ -15,21 +14,65 @@ export default function RatesModal({ isOpen, rates, onClose, onSave }) {
     twitter: 45,
     instagram: 40,
   });
-  const [calcViews, setCalcViews] = useState(25000);
+  const [originalRates, setOriginalRates] = useState({
+    youtube: 60,
+    tiktok: 60,
+    twitter: 45,
+    instagram: 40,
+  });
+  const [previewPreset, setPreviewPreset] = useState('25K'); // '10K' | '25K' | '50K' | '100K' | 'custom'
+  const [customViews, setCustomViews] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (rates && Object.keys(rates).length > 0) {
-      setFormData({
+      const initial = {
         youtube: rates.youtube ?? 60,
         tiktok: rates.tiktok ?? 60,
         twitter: rates.twitter ?? 45,
         instagram: rates.instagram ?? 40,
-      });
+      };
+      setFormData(initial);
+      setOriginalRates(initial);
     }
   }, [rates, isOpen]);
 
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
+
+  // Calculate current effective preview views
+  let currentViews = 25000;
+  let previewLabel = '25K';
+
+  if (previewPreset === 'custom') {
+    const parsed = parseInt(customViews, 10);
+    currentViews = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+    previewLabel = currentViews >= 1000 && currentViews % 1000 === 0
+      ? `${currentViews / 1000}K`
+      : currentViews.toLocaleString();
+  } else if (previewPreset === '10K') {
+    currentViews = 10000;
+    previewLabel = '10K';
+  } else if (previewPreset === '25K') {
+    currentViews = 25000;
+    previewLabel = '25K';
+  } else if (previewPreset === '50K') {
+    currentViews = 50000;
+    previewLabel = '50K';
+  } else if (previewPreset === '100K') {
+    currentViews = 100000;
+    previewLabel = '100K';
+  }
 
   const handleChange = (platform, val) => {
     setFormData((prev) => ({
@@ -39,13 +82,19 @@ export default function RatesModal({ isOpen, rates, onClose, onSave }) {
   };
 
   const handleReset = () => {
-    if (window.confirm('Reset all platform payout rates to default settings?')) {
-      setFormData({ ...DEFAULT_RATES });
-    }
+    setFormData({ ...DEFAULT_RATES });
   };
 
+  // Count unsaved changes
+  const unsavedKeys = Object.keys(formData).filter((k) => {
+    const cur = parseFloat(formData[k]) || 0;
+    const orig = parseFloat(originalRates[k]) || 0;
+    return cur !== orig;
+  });
+  const unsavedCount = unsavedKeys.length;
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setLoading(true);
     try {
       const payload = {
@@ -65,198 +114,348 @@ export default function RatesModal({ isOpen, rates, onClose, onSave }) {
     {
       id: 'youtube',
       name: 'YouTube',
-      icon: <i className="fa-brands fa-youtube text-red-600 text-lg"></i>,
-      accentBg: 'bg-red-50 border-red-200',
-      badgeColor: 'bg-red-100 text-red-800 border-red-200',
+      icon: (
+        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-[#ff0000]">
+          <svg className="text-[14px] text-default-font" width="1em" height="1em" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z" fill="rgb(255 255 255)" />
+          </svg>
+        </div>
+      ),
     },
     {
       id: 'tiktok',
       name: 'TikTok',
-      icon: <i className="fa-brands fa-tiktok text-neutral-900 text-lg"></i>,
-      accentBg: 'bg-neutral-100 border-neutral-300',
-      badgeColor: 'bg-neutral-200 text-neutral-900 border-neutral-300',
+      icon: (
+        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-neutral-900">
+          <span className="text-body-bold font-body-bold text-neutral-0">♪</span>
+        </div>
+      ),
     },
     {
       id: 'twitter',
       name: 'Twitter / X',
-      icon: <i className="fa-brands fa-x-twitter text-neutral-900 text-lg"></i>,
-      accentBg: 'bg-neutral-100 border-neutral-300',
-      badgeColor: 'bg-neutral-200 text-neutral-900 border-neutral-300',
+      icon: (
+        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-neutral-900">
+          <span className="text-body-bold font-body-bold text-neutral-0">𝕏</span>
+        </div>
+      ),
     },
     {
       id: 'instagram',
       name: 'Instagram',
-      icon: <i className="fa-brands fa-instagram text-pink-600 text-lg"></i>,
-      accentBg: 'bg-pink-50 border-pink-200',
-      badgeColor: 'bg-pink-100 text-pink-800 border-pink-200',
+      icon: (
+        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-[#e1306c]">
+          <svg className="text-[16px] text-default-font" width="1em" height="1em" viewBox="0 0 24 24">
+            <rect
+              x="3"
+              y="3"
+              width="18"
+              height="18"
+              rx="5"
+              ry="5"
+              fill="none"
+              stroke="rgb(255 255 255)"
+              strokeWidth="2"
+              strokeLinecap="butt"
+              strokeLinejoin="miter"
+            />
+            <ellipse
+              cx="12"
+              cy="12"
+              rx="4"
+              ry="4"
+              fill="none"
+              stroke="rgb(255 255 255)"
+              strokeWidth="2"
+              strokeLinecap="butt"
+              strokeLinejoin="miter"
+            />
+            <ellipse
+              cx="17.5"
+              cy="6.5"
+              rx="1.2"
+              ry="1.2"
+              fill="rgb(255 255 255)"
+            />
+          </svg>
+        </div>
+      ),
     },
   ];
 
   return (
-    <div className="fixed inset-0 z-50 bg-neutral-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white border border-neutral-200 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden animate-fade-in max-h-[92vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 bg-neutral-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="flex w-full max-w-[560px] flex-col items-start overflow-hidden rounded-lg bg-default-background shadow-md border border-neutral-border animate-fade-in">
         {/* Header */}
-        <div className="px-6 py-4 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shadow-xs">
-              <Coins className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-neutral-900 text-base">Campaign Pricing Rates</h3>
-              <p className="text-xs text-neutral-500">Configure ETB payout rate per 1,000 views for each platform</p>
-            </div>
+        <div className="flex w-full items-start gap-3 px-6 pt-5 pb-4">
+          <div className="flex flex-col items-start gap-1 grow">
+            <span className="w-full text-heading-3 font-heading-3 text-default-font">
+              Pricing rates
+            </span>
+            <span className="w-full text-body font-body text-subtext-color">
+              What clippers earn per 1,000 approved views, by platform.
+            </span>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white hover:bg-neutral-100 text-neutral-500 hover:text-neutral-700 border border-neutral-200 transition flex items-center justify-center"
+            className="flex h-8 w-8 flex-none items-center justify-center rounded-sm hover:bg-neutral-100 transition cursor-pointer"
+            title="Close"
           >
-            <X className="w-4 h-4" />
+            <svg
+              className="text-[16px] text-default-font"
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M18 6 6 18M6 6l12 12"
+                fill="none"
+                stroke="rgb(107 114 128)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="miter"
+              />
+            </svg>
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1">
-          {/* Platform Rate Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {platforms.map((plat) => {
-              const currentRate = parseFloat(formData[plat.id]) || 0;
-              const perView = (currentRate / 1000).toFixed(4);
-
+        {/* Preview Payout Toolbar */}
+        <div className="flex w-full items-center justify-between border-y border-solid border-neutral-border bg-neutral-50 px-6 py-3">
+          <span className="text-caption-bold font-caption-bold text-neutral-700">
+            Preview payout at
+          </span>
+          <div className="flex items-center gap-1 rounded-md bg-neutral-100 px-1 py-1">
+            {['10K', '25K', '50K', '100K'].map((preset) => {
+              const isActive = previewPreset === preset;
               return (
-                <div
-                  key={plat.id}
-                  className="p-3.5 rounded-xl border border-neutral-200 bg-white hover:border-brand-300 transition shadow-xs flex flex-col justify-between gap-2.5"
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => {
+                    setPreviewPreset(preset);
+                    setCustomViews('');
+                  }}
+                  className={`flex items-start rounded-sm px-2.5 py-1 transition cursor-pointer ${
+                    isActive ? 'bg-default-background shadow-sm' : 'hover:bg-neutral-200/60'
+                  }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-8 h-8 rounded-lg ${plat.accentBg} flex items-center justify-center border shrink-0`}>
-                        {plat.icon}
-                      </div>
-                      <div>
-                        <span className="font-semibold text-neutral-900 text-sm block">{plat.name}</span>
-                        <span className="text-[11px] text-neutral-400 font-mono">
-                          {perView} ETB / view
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-neutral-600 block">
-                      Payout per 1,000 Views
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        required
-                        value={formData[plat.id]}
-                        onChange={(e) => handleChange(plat.id, e.target.value)}
-                        placeholder="0.00"
-                        className="w-full pl-3.5 pr-14 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-mono text-neutral-900 font-semibold focus:outline-none focus:border-brand-500 focus:bg-white"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400 select-none">
-                        ETB
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Quick Real-Time Simulator */}
-          <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-800">
-                <Calculator className="w-4 h-4 text-brand-600" />
-                <span>Real-Time Payout Calculator</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                {[10000, 25000, 50000, 100000].map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setCalcViews(v)}
-                    className={`text-[10px] px-2 py-0.5 rounded font-medium transition ${
-                      calcViews === v
-                        ? 'bg-brand-500 text-white font-bold'
-                        : 'bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-100'
+                  <span
+                    className={`self-stretch ${
+                      isActive
+                        ? 'text-caption-bold font-caption-bold text-default-font'
+                        : 'text-caption font-caption text-subtext-color'
                     }`}
                   >
-                    {(v / 1000)}k
-                  </button>
-                ))}
-              </div>
-            </div>
+                    {preset}
+                  </span>
+                </button>
+              );
+            })}
+            <input
+              className={`w-20 flex-none rounded-sm border border-solid border-neutral-border bg-default-background px-2 py-0.5 text-caption font-caption text-default-font outline-none placeholder:text-neutral-400 ${
+                previewPreset === 'custom' ? 'ring-1 ring-brand-primary border-brand-primary' : ''
+              }`}
+              placeholder="Custom"
+              value={customViews}
+              onChange={(e) => {
+                setCustomViews(e.target.value);
+                setPreviewPreset('custom');
+              }}
+              type="number"
+            />
+          </div>
+        </div>
 
-            <div className="flex items-center gap-3">
-              <label className="text-xs text-neutral-500 shrink-0">Sample Views:</label>
-              <input
-                type="number"
-                min="0"
-                step="1000"
-                value={calcViews}
-                onChange={(e) => setCalcViews(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                className="w-full px-3 py-1.5 bg-white border border-neutral-200 rounded-lg text-xs font-mono font-semibold text-neutral-900 focus:outline-none focus:border-brand-500"
-              />
-            </div>
+        {/* Platform Rates Table */}
+        <div className="flex w-full flex-col items-start px-6 py-2">
+          {/* Table Header */}
+          <div className="w-full items-center gap-4 py-2 grid grid-cols-[1fr_168px_120px]">
+            <span className="text-overline font-overline text-subtext-color uppercase">
+              Platform
+            </span>
+            <span className="text-overline font-overline text-subtext-color uppercase">
+              Rate per 1K views
+            </span>
+            <span className="text-overline font-overline text-subtext-color text-right uppercase">
+              At {previewLabel} views
+            </span>
+          </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-center">
-              {platforms.map((p) => {
-                const rate = parseFloat(formData[p.id]) || 0;
-                const payout = ((calcViews / 1000) * rate).toFixed(2);
-                return (
-                  <div key={p.id} className="p-2 rounded-lg bg-white border border-neutral-200 text-xs">
-                    <span className="text-[11px] text-neutral-500 block truncate">{p.name}</span>
-                    <span className="font-bold text-neutral-900 font-mono text-xs text-brand-700">
-                      {Number(payout).toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB
+          {/* Platform Rows */}
+          {platforms.map((plat) => {
+            const currentRate = parseFloat(formData[plat.id]) || 0;
+            const originalRate = parseFloat(originalRates[plat.id]) || 0;
+            const isChanged = currentRate !== originalRate;
+
+            const ratePerSingleView = (currentRate / 1000).toFixed(3);
+            const payoutAmount = (currentViews / 1000) * currentRate;
+            const originalPayoutAmount = (currentViews / 1000) * originalRate;
+
+            return (
+              <div
+                key={plat.id}
+                className="w-full items-center gap-4 border-t border-solid border-neutral-border py-3 grid grid-cols-[1fr_168px_120px]"
+              >
+                {/* Platform info */}
+                <div className="flex items-center gap-3">
+                  {plat.icon}
+                  <div className="flex flex-col items-start">
+                    <span className="w-full text-body-bold font-body-bold text-default-font">
+                      {plat.name}
+                    </span>
+                    <span className="w-full text-monospace-caption font-monospace-caption text-subtext-color">
+                      {ratePerSingleView} ETB / view
                     </span>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                </div>
 
-          {/* Info Banner */}
-          <div className="p-3 rounded-xl bg-brand-50/60 border border-brand-200 text-xs text-neutral-600 flex items-start gap-2">
-            <TrendingUp className="w-4 h-4 text-brand-600 shrink-0 mt-0.5" />
-            <p className="text-[11px] leading-relaxed">
-              Updated rates apply to all future submissions and can be used to auto-calculate payouts when editing submissions. Existing approved payouts remain untouched.
-            </p>
-          </div>
+                {/* Rate input */}
+                <div
+                  className={`flex grow shrink-0 basis-0 items-center overflow-hidden rounded-sm border border-solid bg-default-background transition ${
+                    isChanged
+                      ? 'border-brand-primary shadow-[0px_0px_0px_3px_#d6eefa]'
+                      : 'border-neutral-300 focus-within:border-brand-primary focus-within:shadow-[0px_0px_0px_3px_#d6eefa]'
+                  }`}
+                >
+                  <input
+                    className="w-0 flex-none px-3 py-2 text-monospace-body font-monospace-body text-default-font outline-none placeholder:text-[#a3a3a3] min-w-0 grow shrink basis-0 bg-transparent"
+                    placeholder="0"
+                    value={formData[plat.id]}
+                    onChange={(e) => handleChange(plat.id, e.target.value)}
+                    type="number"
+                    step="0.5"
+                    min="0"
+                  />
+                  <span className="text-caption font-caption text-subtext-color pr-3 select-none">
+                    ETB
+                  </span>
+                </div>
 
-          {/* Footer Actions */}
-          <div className="flex items-center justify-between pt-3 border-t border-neutral-200">
-            <button
-              type="button"
-              onClick={handleReset}
-              className="px-3 py-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-xs font-medium transition flex items-center gap-1.5"
+                {/* Calculated payout with diff */}
+                {isChanged ? (
+                  <div className="flex flex-col items-end">
+                    <span className="text-monospace-body font-monospace-body text-default-font text-right">
+                      {payoutAmount.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{' '}
+                      ETB
+                    </span>
+                    <span className="text-caption font-caption text-warning-800">
+                      was{' '}
+                      {originalPayoutAmount.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-monospace-body font-monospace-body text-default-font text-right">
+                    {payoutAmount.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{' '}
+                    ETB
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Notice Info Banner */}
+        <div className="flex items-start gap-2 rounded-md bg-brand-50 px-3 py-2.5 self-stretch mx-6 mb-4">
+          <svg
+            className="text-[14px] text-default-font mt-0.5 shrink-0"
+            width="1em"
+            height="1em"
+            viewBox="0 0 24 24"
+          >
+            <ellipse
+              cx="12"
+              cy="12"
+              rx="9"
+              ry="9"
+              fill="none"
+              stroke="rgb(20 121 168)"
+              strokeWidth="2"
+              strokeLinecap="butt"
+              strokeLinejoin="miter"
+            />
+            <path
+              d="M12 11v5m0-8h.01"
+              fill="none"
+              stroke="rgb(20 121 168)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="miter"
+            />
+          </svg>
+          <span className="text-caption font-caption text-brand-800 grow">
+            New rates apply to future submissions only. Payouts you&#39;ve already approved won&#39;t change.
+          </span>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="flex w-full items-center gap-2 border-t border-solid border-neutral-border bg-neutral-50 px-6 py-3">
+          <button
+            type="button"
+            onClick={handleReset}
+            className="flex items-center gap-1.5 rounded-sm px-2 py-1.5 hover:bg-neutral-100 transition cursor-pointer text-subtext-color hover:text-default-font"
+            title="Reset to default rates (60 ETB YouTube/TikTok, 45 ETB Twitter, 40 ETB Instagram)"
+          >
+            <svg
+              className="text-[13px] text-default-font"
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset Defaults</span>
-            </button>
+              <path
+                d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"
+                fill="none"
+                stroke="rgb(107 114 128)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="text-body font-body text-subtext-color">
+              Reset to defaults
+            </span>
+          </button>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-white hover:bg-neutral-100 text-neutral-700 text-xs font-medium border border-neutral-200 transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-5 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold shadow-md shadow-brand-500/20 transition flex items-center gap-1.5"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>Save Platform Rates</span>
-              </button>
-            </div>
-          </div>
-        </form>
+          <div className="flex items-start grow" />
+
+          {unsavedCount > 0 && (
+            <span className="text-caption font-caption text-warning-800 pr-2">
+              {unsavedCount} unsaved change{unsavedCount > 1 ? 's' : ''}
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center rounded-sm border border-solid border-neutral-border bg-default-background px-3 py-1.5 hover:bg-neutral-50 transition cursor-pointer"
+          >
+            <span className="text-body font-body text-neutral-700">Cancel</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading}
+            className="flex items-center rounded-sm bg-brand-primary px-3 py-1.5 hover:bg-brand-600 transition cursor-pointer disabled:opacity-50"
+          >
+            <span className="text-body-bold font-body-bold text-neutral-0">
+              {loading ? 'Saving...' : 'Save rates'}
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   );
