@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Search, X, Copy, PenSquare, Share2 } from 'lucide-react';
 
 export default function SubmissionsManager({
   submissions,
@@ -51,48 +50,104 @@ export default function SubmissionsManager({
     return true;
   });
 
+  // Calculate totals for footer
+  const totalViews = filteredSubs.reduce((acc, s) => acc + (parseInt(s.views, 10) || 0), 0);
+  const totalPayout = filteredSubs.reduce((acc, s) => acc + (parseFloat(s.payment_amount) || 0), 0);
+
   const getPlatformIcon = (platform) => {
     const p = (platform || '').toLowerCase();
-    if (p === 'tiktok') return <i className="fa-brands fa-tiktok text-neutral-800"></i>;
-    if (p === 'youtube') return <i className="fa-brands fa-youtube text-red-600"></i>;
-    if (p === 'twitter') return <i className="fa-brands fa-x-twitter text-neutral-800"></i>;
-    if (p === 'instagram') return <i className="fa-brands fa-instagram text-pink-600"></i>;
-    return <Share2 className="w-3 h-3 text-neutral-400" />;
+    if (p.includes('youtube')) {
+      return (
+        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-[#ff0000]">
+          <svg className="text-[14px] text-default-font" width="1em" height="1em" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z" fill="rgb(255 255 255)" />
+          </svg>
+        </div>
+      );
+    }
+    if (p.includes('tiktok')) {
+      return (
+        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-neutral-900">
+          <span className="text-body-bold font-body-bold text-neutral-0">♪</span>
+        </div>
+      );
+    }
+    if (p.includes('twitter') || p === 'x') {
+      return (
+        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-neutral-900">
+          <span className="text-body-bold font-body-bold text-neutral-0">𝕏</span>
+        </div>
+      );
+    }
+    return (
+      <div className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-[#e1306c]">
+        <svg className="text-[16px] text-default-font" width="1em" height="1em" viewBox="0 0 24 24">
+          <rect
+            x="3"
+            y="3"
+            width="18"
+            height="18"
+            rx="5"
+            ry="5"
+            fill="none"
+            stroke="rgb(255 255 255)"
+            strokeWidth="2"
+            strokeLinecap="butt"
+            strokeLinejoin="miter"
+          />
+          <ellipse
+            cx="12"
+            cy="12"
+            rx="4"
+            ry="4"
+            fill="none"
+            stroke="rgb(255 255 255)"
+            strokeWidth="2"
+            strokeLinecap="butt"
+            strokeLinejoin="miter"
+          />
+          <ellipse cx="17.5" cy="6.5" rx="1.2" ry="1.2" fill="rgb(255 255 255)" />
+        </svg>
+      </div>
+    );
   };
 
   const getStatusBadge = (status) => {
-    const map = {
-      pending: (
-        <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-warning-100 text-warning-800 border border-warning-200">
-          Pending
-        </span>
-      ),
-      under_review: (
-        <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-50 text-brand-700 border border-brand-200">
-          Under Review
-        </span>
-      ),
-      approved: (
-        <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-success-100 text-success-800 border border-success-200">
-          Approved
-        </span>
-      ),
-      rejected: (
-        <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-error-100 text-error-800 border border-error-200">
-          Rejected
-        </span>
-      ),
-    };
-    return map[status] || <span className="px-2 py-0.5 rounded text-xs">{status}</span>;
+    switch (status) {
+      case 'approved':
+        return (
+          <span className="self-stretch text-caption-bold font-caption-bold text-success-800 rounded-full bg-success-100 px-2 py-0.5 whitespace-nowrap">
+            Approved
+          </span>
+        );
+      case 'under_review':
+        return (
+          <span className="self-stretch text-caption-bold font-caption-bold text-brand-700 rounded-full bg-brand-50 border border-brand-200 px-2 py-0.5 whitespace-nowrap">
+            In review
+          </span>
+        );
+      case 'rejected':
+        return (
+          <span className="self-stretch text-caption-bold font-caption-bold text-error-800 rounded-full bg-error-100 px-2 py-0.5 whitespace-nowrap">
+            Rejected
+          </span>
+        );
+      default:
+        return (
+          <span className="self-stretch text-caption-bold font-caption-bold text-warning-800 rounded-full bg-warning-100 px-2 py-0.5 whitespace-nowrap">
+            Pending
+          </span>
+        );
+    }
   };
 
   const formatDate = (isoStr) => {
     if (!isoStr) return '-';
     try {
-      return new Date(isoStr).toLocaleDateString(undefined, {
+      return new Date(isoStr).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
-        hour: '2-digit',
+        hour: 'numeric',
         minute: '2-digit',
       });
     } catch {
@@ -101,207 +156,410 @@ export default function SubmissionsManager({
   };
 
   return (
-    <section className="space-y-4">
-      {/* Active Single User Scope Banner */}
-      {selectedUser && (
-        <div className="flex items-center justify-between px-4 py-3 rounded-2xl bg-brand-50 border border-brand-200 text-brand-900 shadow-sm animate-fade-in">
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-brand-500 animate-pulse"></span>
-            <span className="text-xs font-medium">
-              Showing exclusively clips for clipper:{' '}
-              <strong className="text-brand-700 font-bold">
-                {selectedUser.telegram_username || `Chat ID: ${selectedUser.chat_id}`}
-              </strong>{' '}
-              <span className="text-neutral-500 font-normal">({filteredSubs.length} clips found)</span>
-            </span>
-          </div>
+    <div className="flex w-full flex-col items-start gap-4 animate-fade-in">
+      {/* Toolbar: Status Filter Pills + Search + Platform */}
+      <div className="flex w-full flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        {/* Status segmented pills */}
+        <div className="flex items-center gap-1 rounded-md bg-neutral-100 px-1 py-1 overflow-x-auto">
+          {/* All */}
           <button
-            onClick={onClearSelectedUser}
-            className="px-3 py-1.5 rounded-xl bg-white hover:bg-neutral-100 text-neutral-700 text-xs font-semibold border border-brand-200 shadow-sm transition flex items-center gap-1.5"
-            title="Clear filter to view all clippers' submissions"
+            type="button"
+            onClick={() => setStatusFilter('all')}
+            className={`flex items-center gap-1.5 rounded-sm px-3 py-1 transition cursor-pointer shrink-0 ${
+              statusFilter === 'all'
+                ? 'bg-default-background shadow-sm'
+                : 'hover:bg-neutral-200/50'
+            }`}
           >
-            <X className="w-3.5 h-3.5 text-neutral-500" />
-            <span>Clear Filter &amp; View All Clips</span>
+            <span
+              className={
+                statusFilter === 'all'
+                  ? 'text-caption-bold font-caption-bold text-default-font'
+                  : 'text-caption font-caption text-subtext-color'
+              }
+            >
+              All
+            </span>
+            <span className="text-caption font-caption text-subtext-color">
+              {counts.all}
+            </span>
+          </button>
+
+          {/* Pending */}
+          <button
+            type="button"
+            onClick={() => setStatusFilter('pending')}
+            className={`flex items-center gap-1.5 rounded-sm px-3 py-1 transition cursor-pointer shrink-0 ${
+              statusFilter === 'pending'
+                ? 'bg-default-background shadow-sm'
+                : 'hover:bg-neutral-200/50'
+            }`}
+          >
+            <div className="flex h-1.5 w-1.5 flex-none items-start rounded-full bg-warning-500" />
+            <span
+              className={
+                statusFilter === 'pending'
+                  ? 'text-caption-bold font-caption-bold text-default-font'
+                  : 'text-caption font-caption text-subtext-color'
+              }
+            >
+              Pending {counts.pending}
+            </span>
+          </button>
+
+          {/* In review */}
+          <button
+            type="button"
+            onClick={() => setStatusFilter('under_review')}
+            className={`flex items-center gap-1.5 rounded-sm px-3 py-1 transition cursor-pointer shrink-0 ${
+              statusFilter === 'under_review'
+                ? 'bg-default-background shadow-sm'
+                : 'hover:bg-neutral-200/50'
+            }`}
+          >
+            <div className="flex h-1.5 w-1.5 flex-none items-start rounded-full bg-brand-primary" />
+            <span
+              className={
+                statusFilter === 'under_review'
+                  ? 'text-caption-bold font-caption-bold text-default-font'
+                  : 'text-caption font-caption text-subtext-color'
+              }
+            >
+              In review {counts.under_review}
+            </span>
+          </button>
+
+          {/* Approved */}
+          <button
+            type="button"
+            onClick={() => setStatusFilter('approved')}
+            className={`flex items-center gap-1.5 rounded-sm px-3 py-1 transition cursor-pointer shrink-0 ${
+              statusFilter === 'approved'
+                ? 'bg-default-background shadow-sm'
+                : 'hover:bg-neutral-200/50'
+            }`}
+          >
+            <div className="flex h-1.5 w-1.5 flex-none items-start rounded-full bg-success-600" />
+            <span
+              className={
+                statusFilter === 'approved'
+                  ? 'text-caption-bold font-caption-bold text-default-font'
+                  : 'text-caption font-caption text-subtext-color'
+              }
+            >
+              Approved {counts.approved}
+            </span>
+          </button>
+
+          {/* Rejected */}
+          <button
+            type="button"
+            onClick={() => setStatusFilter('rejected')}
+            className={`flex items-center gap-1.5 rounded-sm px-3 py-1 transition cursor-pointer shrink-0 ${
+              statusFilter === 'rejected'
+                ? 'bg-default-background shadow-sm'
+                : 'hover:bg-neutral-200/50'
+            }`}
+          >
+            <div className="flex h-1.5 w-1.5 flex-none items-start rounded-full bg-error-500" />
+            <span
+              className={
+                statusFilter === 'rejected'
+                  ? 'text-caption-bold font-caption-bold text-default-font'
+                  : 'text-caption font-caption text-subtext-color'
+              }
+            >
+              Rejected {counts.rejected}
+            </span>
           </button>
         </div>
-      )}
 
-      {/* Toolbar & Filters */}
-      <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm space-y-3">
-        {/* Status Pills */}
-        <div className="flex items-center flex-wrap gap-2">
-          <span className="text-xs font-semibold text-neutral-500 mr-1 uppercase tracking-wider">Status:</span>
-          {[
-            { id: 'all', label: 'All', color: 'text-neutral-700' },
-            { id: 'pending', label: 'Pending Review', color: 'text-warning-700' },
-            { id: 'under_review', label: 'Under Review', color: 'text-brand-700' },
-            { id: 'approved', label: 'Approved', color: 'text-success-700' },
-            { id: 'rejected', label: 'Rejected', color: 'text-error-700' },
-          ].map((pill) => (
+        {/* Search Input Bar */}
+        <div className="flex items-center gap-2 rounded-sm border border-solid border-neutral-border bg-default-background px-3 py-1.5 grow">
+          <svg
+            className="text-[14px] text-default-font shrink-0"
+            width="1em"
+            height="1em"
+            viewBox="0 0 24 24"
+          >
+            <ellipse
+              cx="11"
+              cy="11"
+              rx="7"
+              ry="7"
+              fill="none"
+              stroke="rgb(156 163 175)"
+              strokeWidth="2"
+              strokeLinecap="butt"
+              strokeLinejoin="miter"
+            />
+            <path
+              d="m20 20-3.5-3.5"
+              fill="none"
+              stroke="rgb(156 163 175)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="miter"
+            />
+          </svg>
+
+          {/* Scoped Clipper Chip */}
+          {selectedUser && (
+            <div className="flex items-center gap-1 rounded-sm bg-brand-100 pl-2 pr-1 py-0.5 shrink-0">
+              <span className="text-caption-bold font-caption-bold text-brand-800">
+                Clipper: @{selectedUser.telegram_username?.replace(/^@/, '') || selectedUser.chat_id}
+              </span>
+              <button
+                type="button"
+                onClick={onClearSelectedUser}
+                className="hover:opacity-75 cursor-pointer ml-0.5"
+                title="Clear filter to view all clippers' submissions"
+              >
+                <svg
+                  className="text-[12px] text-default-font"
+                  width="1em"
+                  height="1em"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M18 6 6 18M6 6l12 12"
+                    fill="none"
+                    stroke="rgb(17 87 122)"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="miter"
+                  />
+                </svg>
+              </button>
+            </div>
+          )}
+
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search link, caption or handle"
+            className="w-full text-body font-body text-default-font placeholder:text-neutral-400 outline-none bg-transparent"
+          />
+
+          {search && (
             <button
-              key={pill.id}
-              onClick={() => setStatusFilter(pill.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                statusFilter === pill.id
-                  ? 'bg-brand-500 text-white shadow-sm'
-                  : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-600 border border-neutral-200'
-              }`}
+              type="button"
+              onClick={() => setSearch('')}
+              className="text-neutral-400 hover:text-neutral-600 cursor-pointer shrink-0"
+              title="Clear search"
             >
-              <span className={statusFilter === pill.id ? 'text-white' : pill.color}>{pill.label}</span> (
-              {counts[pill.id] || 0})
+              <svg className="text-[12px]" width="1em" height="1em" viewBox="0 0 24 24">
+                <path
+                  d="M18 6 6 18M6 6l12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="miter"
+                />
+              </svg>
             </button>
-          ))}
+          )}
         </div>
 
-        {/* Search & Platform */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pt-1 border-t border-neutral-200">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by clipper username, video link, caption, or handle..."
-              className="w-full pl-10 pr-10 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-brand-500 focus:bg-white"
+        {/* Platform Selector Dropdown */}
+        <div className="relative flex items-center gap-2 rounded-sm border border-solid border-neutral-border bg-default-background px-3 py-1.5 shrink-0">
+          <select
+            value={platformFilter}
+            onChange={(e) => setPlatformFilter(e.target.value)}
+            className="appearance-none bg-transparent pr-6 text-body font-body text-default-font outline-none cursor-pointer"
+          >
+            <option value="all">All platforms</option>
+            <option value="youtube">YouTube</option>
+            <option value="tiktok">TikTok</option>
+            <option value="twitter">Twitter / X</option>
+            <option value="instagram">Instagram</option>
+          </select>
+          <svg
+            className="pointer-events-none absolute right-3 text-[14px] text-default-font"
+            width="1em"
+            height="1em"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="m6 9 6 6 6-6"
+              fill="none"
+              stroke="rgb(107 114 128)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="miter"
             />
-            {search && (
+          </svg>
+        </div>
+      </div>
+
+      {/* Submissions Table matching mockup */}
+      <div className="flex w-full flex-col items-start overflow-hidden rounded-lg border border-solid border-neutral-border bg-default-background shadow-xs">
+        {/* Table Header */}
+        <div className="w-full items-center gap-4 border-b border-solid border-neutral-border bg-neutral-50 px-5 py-2.5 grid grid-cols-[120px_1fr_100px_130px_110px_88px]">
+          <span className="text-overline font-overline text-subtext-color uppercase">
+            Submission
+          </span>
+          <span className="text-overline font-overline text-subtext-color uppercase">
+            Clip
+          </span>
+          <span className="text-overline font-overline text-subtext-color text-right uppercase">
+            Views
+          </span>
+          <span className="text-overline font-overline text-subtext-color text-right uppercase">
+            Payout
+          </span>
+          <span className="text-overline font-overline text-subtext-color uppercase">
+            Status
+          </span>
+          <span className="text-overline font-overline text-subtext-color uppercase text-right">
+            {' '}
+          </span>
+        </div>
+
+        {/* Rows */}
+        {filteredSubs.length === 0 ? (
+          <div className="flex w-full flex-col items-center justify-center py-12 px-5 text-center text-subtext-color gap-2">
+            <span className="text-body font-body text-neutral-600">
+              No submissions found matching your filters.
+            </span>
+            {(search || statusFilter !== 'all' || platformFilter !== 'all' || selectedUser) && (
               <button
-                onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700"
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  setStatusFilter('all');
+                  setPlatformFilter('all');
+                  if (onClearSelectedUser) onClearSelectedUser();
+                }}
+                className="text-caption font-caption text-brand-primary hover:underline cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                Clear all filters
               </button>
             )}
           </div>
+        ) : (
+          filteredSubs.map((sub, idx) => {
+            const isLast = idx === filteredSubs.length - 1;
+            const viewsCount = parseInt(sub.views, 10) || 0;
+            const payoutAmount = parseFloat(sub.payment_amount) || 0;
+            const cleanHandle = sub.handle
+              ? `@${sub.handle.replace(/^@/, '')}`
+              : sub.telegram_username
+              ? `@${sub.telegram_username.replace(/^@/, '')}`
+              : `Chat ID: ${sub.chat_id}`;
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-neutral-500 font-medium">Platform:</span>
-            <select
-              value={platformFilter}
-              onChange={(e) => setPlatformFilter(e.target.value)}
-              className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-medium text-neutral-700 focus:outline-none focus:border-brand-500"
-            >
-              <option value="all">All Platforms</option>
-              <option value="tiktok">TikTok</option>
-              <option value="youtube">YouTube</option>
-              <option value="twitter">Twitter / X</option>
-              <option value="instagram">Instagram</option>
-            </select>
-          </div>
-        </div>
-      </div>
+            return (
+              <div
+                key={sub.id}
+                className={`w-full items-center gap-4 px-5 py-3 grid grid-cols-[120px_1fr_100px_130px_110px_88px] hover:bg-neutral-50 transition ${
+                  !isLast ? 'border-b border-solid border-neutral-border' : ''
+                }`}
+              >
+                {/* 1. Submission ID & Date */}
+                <div className="flex flex-col items-start">
+                  <span className="w-full text-body-bold font-body-bold text-default-font">
+                    #{sub.id}
+                  </span>
+                  <span className="w-full text-caption font-caption text-subtext-color">
+                    {formatDate(sub.submitted_at)}
+                  </span>
+                </div>
 
-      {/* Submissions Table */}
-      <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-neutral-900">
-            <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
-              <tr>
-                <th className="px-4 py-3.5 font-semibold">ID / Date</th>
-                <th className="px-4 py-3.5 font-semibold">Clipper</th>
-                <th className="px-4 py-3.5 font-semibold">Platform &amp; Account</th>
-                <th className="px-4 py-3.5 font-semibold">Video Link</th>
-                <th className="px-4 py-3.5 font-semibold">Caption</th>
-                <th className="px-4 py-3.5 font-semibold text-right">Views</th>
-                <th className="px-4 py-3.5 font-semibold text-right">Payment (ETB)</th>
-                <th className="px-4 py-3.5 font-semibold text-center">Status</th>
-                <th className="px-5 py-3.5 font-semibold text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200">
-              {filteredSubs.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-5 py-12 text-center text-neutral-400">
-                    No submissions found matching your filters.
-                  </td>
-                </tr>
-              ) : (
-                filteredSubs.map((sub) => (
-                  <tr key={sub.id} className="hover:bg-neutral-50/80 transition">
-                    {/* ID & Date */}
-                    <td className="px-4 py-3.5">
-                      <div className="font-mono font-bold text-neutral-800 text-xs">#{sub.id}</div>
-                      <div className="text-[11px] text-neutral-500">{formatDate(sub.submitted_at)}</div>
-                    </td>
-
-                    {/* Clipper */}
-                    <td className="px-4 py-3.5">
-                      <div className="font-semibold text-neutral-900 text-xs">{sub.telegram_username}</div>
-                      <div className="text-[10px] text-neutral-500 font-mono">Chat ID: {sub.chat_id}</div>
-                    </td>
-
-                    {/* Platform & Account */}
-                    <td className="px-4 py-3.5">
-                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-neutral-100 border border-neutral-200 text-xs text-neutral-800">
-                        {getPlatformIcon(sub.platform)}
-                        <span className="font-medium font-mono">{sub.handle || sub.platform}</span>
-                      </div>
-                    </td>
-
-                    {/* Video Link */}
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-1.5 max-w-[200px]">
-                        <a
-                          href={sub.link}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-brand-600 hover:text-brand-700 font-mono text-xs truncate underline"
-                          title={sub.link}
-                        >
-                          {sub.link}
-                        </a>
-                        <button
-                          onClick={() => onCopy(sub.link, 'Video Link')}
-                          className="text-neutral-400 hover:text-neutral-600 shrink-0"
-                          title="Copy Link"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-
-                    {/* Caption */}
-                    <td className="px-4 py-3.5">
-                      <div className="max-w-[200px] text-xs text-neutral-700 truncate" title={sub.caption || ''}>
-                        {sub.caption ? <span className="italic">"{sub.caption}"</span> : <span className="text-neutral-400 italic">None</span>}
-                      </div>
-                    </td>
-
-                    {/* Views */}
-                    <td className="px-4 py-3.5 text-right font-mono font-semibold text-brand-600 text-xs">
-                      {Number(sub.views || 0).toLocaleString()}
-                    </td>
-
-                    {/* Payment (ETB) - Paid: #6366F1 */}
-                    <td className="px-4 py-3.5 text-right font-mono font-bold text-paid-600 text-xs">
-                      {Number(sub.payment_amount || 0).toFixed(2)} ETB
-                    </td>
-
-                    {/* Status Badge */}
-                    <td className="px-4 py-3.5 text-center">{getStatusBadge(sub.status)}</td>
-
-                    {/* Action */}
-                    <td className="px-5 py-3.5 text-right">
-                      <button
-                        onClick={() => onEditSubmission(sub)}
-                        className="px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-500 text-brand-700 hover:text-white text-xs font-semibold border border-brand-200 hover:border-brand-500 transition flex items-center gap-1.5 ml-auto shadow-sm"
+                {/* 2. Clip: Icon + Handle + Link + Caption */}
+                <div className="flex min-w-[0px] items-start gap-3">
+                  {getPlatformIcon(sub.platform)}
+                  <div className="flex min-w-[0px] flex-col items-start grow">
+                    <span className="w-full text-body-bold font-body-bold text-default-font truncate">
+                      {cleanHandle}
+                    </span>
+                    <a
+                      href={sub.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="line-clamp-1 w-full text-monospace-caption font-monospace-caption text-brand-700 break-all hover:underline"
+                      title={sub.link}
+                    >
+                      {sub.link}
+                    </a>
+                    {sub.caption ? (
+                      <span
+                        className="line-clamp-1 w-full text-caption font-caption text-neutral-400 italic truncate"
+                        title={sub.caption}
                       >
-                        <PenSquare className="w-3.5 h-3.5" />
-                        <span>Edit Views &amp; Pay</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                        “{sub.caption}”
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
 
-        <div className="px-5 py-3 bg-neutral-50 border-t border-neutral-200 text-xs text-neutral-500 flex items-center justify-between">
-          <span>Showing {filteredSubs.length} of {submissions.length} submissions</span>
-          <span className="text-neutral-500">Edit views, payouts, captions, or status with instant bot notification</span>
+                {/* 3. Views */}
+                <span
+                  className={`text-monospace-body font-monospace-body text-right ${
+                    viewsCount > 0 ? 'text-default-font font-semibold' : 'text-neutral-400'
+                  }`}
+                >
+                  {viewsCount.toLocaleString()}
+                </span>
+
+                {/* 4. Payout */}
+                <span
+                  className={`text-monospace-body font-monospace-body text-right ${
+                    payoutAmount > 0 ? 'text-default-font font-semibold' : 'text-neutral-400'
+                  }`}
+                >
+                  {payoutAmount.toFixed(2)} ETB
+                </span>
+
+                {/* 5. Status Badge */}
+                <div className="flex items-start">{getStatusBadge(sub.status)}</div>
+
+                {/* 6. Edit Action */}
+                <div className="flex items-start justify-end">
+                  <button
+                    type="button"
+                    onClick={() => onEditSubmission(sub)}
+                    className="flex items-center gap-1.5 self-stretch rounded-sm border border-solid border-neutral-border bg-default-background px-2.5 py-1 hover:bg-neutral-100 transition cursor-pointer shadow-2xs"
+                  >
+                    <svg
+                      className="text-[13px] text-default-font"
+                      width="1em"
+                      height="1em"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"
+                        fill="none"
+                        stroke="rgb(55 65 81)"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    <span className="text-caption-bold font-caption-bold text-neutral-700">
+                      Edit
+                    </span>
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+
+        {/* Footer Summary */}
+        <div className="flex w-full items-center justify-between border-t border-solid border-neutral-border bg-neutral-50 px-5 py-2.5">
+          <span className="text-caption font-caption text-subtext-color">
+            {filteredSubs.length} submission{filteredSubs.length !== 1 ? 's' : ''}
+            {selectedUser
+              ? ` from @${selectedUser.telegram_username?.replace(/^@/, '') || selectedUser.chat_id}`
+              : ''}
+          </span>
+          <span className="text-caption-bold font-caption-bold text-default-font">
+            Total {totalViews.toLocaleString()} views · {totalPayout.toFixed(2)} ETB
+          </span>
         </div>
       </div>
-    </section>
+    </div>
   );
 }
