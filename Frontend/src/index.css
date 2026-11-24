@@ -6,13 +6,13 @@
 
 :root {
   --primary: #229ED9;
-  --bg-main: #0B0F19;
+  --bg-main: #F8F9FA;
 }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background-color: var(--bg-main);
-  color: #E6E8EC;
+  color: #111827;
 }
 
 code, .font-mono {
@@ -25,33 +25,34 @@ code, .font-mono {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #0B0F19;
+  background: #F8F9FA;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1F2937;
+  background: #D1D4DC;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #374151;
+  background: #9CA3AF;
 }
 
 .glass-panel {
-  background: rgba(17, 24, 39, 0.75);
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(230, 232, 236, 0.08);
+  border: 1px solid #E6E8EC;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
 }
 
 .glass-nav {
-  background: rgba(11, 15, 25, 0.85);
+  background: rgba(255, 255, 255, 0.90);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(230, 232, 236, 0.08);
+  border-bottom: 1px solid #E6E8EC;
 }
 
 .password-unmasked {
-  background-color: rgba(34, 158, 217, 0.12);
-  color: #A3D8EF !important;
+  background-color: #E8F5FB;
+  color: #166C97 !important;
   font-weight: 600;
-  border-color: rgba(34, 158, 217, 0.4);
+  border-color: #75C5E7;
 }

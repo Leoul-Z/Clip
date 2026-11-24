@@ -6,14 +6,14 @@ export default function Toast({ toasts }) {
     <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none">
       {toasts.map((t) => {
         const bgColors = {
-          success: 'bg-success-800/20 border-success-500/40 text-success-500',
-          error: 'bg-error-800/20 border-error-500/40 text-error-500',
-          info: 'bg-brand-900/40 border-brand-500/40 text-brand-400',
+          success: 'bg-white border-success-500/40 text-success-800 shadow-lg shadow-success-500/10',
+          error: 'bg-white border-error-500/40 text-error-800 shadow-lg shadow-error-500/10',
+          info: 'bg-white border-brand-500/40 text-brand-800 shadow-lg shadow-brand-500/10',
         };
         const icons = {
-          success: <CheckCircle2 className="w-4 h-4 text-success-500" />,
-          error: <XCircle className="w-4 h-4 text-error-500" />,
-          info: <Info className="w-4 h-4 text-brand-500" />,
+          success: <CheckCircle2 className="w-4 h-4 text-success-600" />,
+          error: <XCircle className="w-4 h-4 text-error-600" />,
+          info: <Info className="w-4 h-4 text-brand-600" />,
         };
 
         return (

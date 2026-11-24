@@ -53,17 +53,17 @@ export default function UsersManager({
 
   const getPlatformIcon = (platform) => {
     const p = (platform || '').toLowerCase();
-    if (p === 'tiktok') return <i className="fa-brands fa-tiktok text-neutral-200"></i>;
-    if (p === 'youtube') return <i className="fa-brands fa-youtube text-red-500"></i>;
-    if (p === 'twitter') return <i className="fa-brands fa-x-twitter text-neutral-200"></i>;
-    if (p === 'instagram') return <i className="fa-brands fa-instagram text-pink-400"></i>;
+    if (p === 'tiktok') return <i className="fa-brands fa-tiktok text-neutral-800"></i>;
+    if (p === 'youtube') return <i className="fa-brands fa-youtube text-red-600"></i>;
+    if (p === 'twitter') return <i className="fa-brands fa-x-twitter text-neutral-800"></i>;
+    if (p === 'instagram') return <i className="fa-brands fa-instagram text-pink-600"></i>;
     return <Share2 className="w-3 h-3 text-neutral-400" />;
   };
 
   return (
     <section className="space-y-4">
       {/* Search & Filter Toolbar */}
-      <div className="glass-panel p-4 rounded-2xl border border-neutral-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Search */}
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
@@ -72,12 +72,12 @@ export default function UsersManager({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search clippers by @username, Chat ID, bank info, or handle..."
-            className="w-full pl-10 pr-10 py-2 bg-neutral-900 border border-neutral-800 rounded-xl text-sm text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-brand-500"
+            className="w-full pl-10 pr-10 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-brand-500 focus:bg-white"
           />
           {search && (
             <button
               onClick={() => setSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700"
             >
               <X className="w-4 h-4" />
             </button>
@@ -89,7 +89,7 @@ export default function UsersManager({
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-xl text-xs font-medium text-neutral-200 focus:outline-none focus:border-brand-500"
+            className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-medium text-neutral-700 focus:outline-none focus:border-brand-500"
           >
             <option value="all">All Clippers</option>
             <option value="has_bank">With Bank Info</option>
@@ -107,8 +107,8 @@ export default function UsersManager({
             }}
             className={`px-3 py-2 rounded-xl text-xs font-medium transition flex items-center gap-1.5 border ${
               showAllPasswords
-                ? 'bg-brand-500/20 border-brand-500 text-brand-400'
-                : 'bg-neutral-900 hover:bg-neutral-800 text-brand-400 border-brand-500/30'
+                ? 'bg-brand-50 border-brand-300 text-brand-700 shadow-sm'
+                : 'bg-white hover:bg-neutral-50 text-brand-600 border-neutral-200'
             }`}
           >
             {showAllPasswords ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -118,10 +118,10 @@ export default function UsersManager({
       </div>
 
       {/* Users Table */}
-      <div className="glass-panel rounded-2xl border border-neutral-800 overflow-hidden shadow-xl">
+      <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-neutral-200">
-            <thead className="bg-neutral-900/90 text-xs uppercase tracking-wider text-neutral-400 border-b border-neutral-800">
+          <table className="w-full text-left text-sm text-neutral-900">
+            <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
               <tr>
                 <th className="px-5 py-3.5 font-semibold">Clipper</th>
                 <th className="px-4 py-3.5 font-semibold">Bank / Payment Details</th>
@@ -129,7 +129,7 @@ export default function UsersManager({
                 <th className="px-4 py-3.5 font-semibold">
                   <span className="flex items-center gap-1.5">
                     Account Passwords
-                    <span className="text-[10px] lowercase font-normal px-1.5 py-0.2 rounded bg-brand-500/20 text-brand-400 border border-brand-500/30">
+                    <span className="text-[10px] lowercase font-normal px-1.5 py-0.2 rounded bg-brand-50 text-brand-700 border border-brand-200">
                       unencrypted
                     </span>
                   </span>
@@ -139,10 +139,10 @@ export default function UsersManager({
                 <th className="px-5 py-3.5 font-semibold text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-800/80">
+            <tbody className="divide-y divide-neutral-200">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-neutral-500">
+                  <td colSpan={7} className="px-5 py-12 text-center text-neutral-400">
                     No clippers match your search or filter.
                   </td>
                 </tr>
@@ -154,11 +154,11 @@ export default function UsersManager({
                   const socials = u.social_accounts || [];
 
                   return (
-                    <tr key={u.id} className="hover:bg-neutral-850/60 transition">
+                    <tr key={u.id} className="hover:bg-neutral-50/80 transition">
                       {/* Clipper Username & Chat ID */}
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-500 flex items-center justify-center font-bold text-xs uppercase">
+                          <div className="w-8 h-8 rounded-full bg-brand-50 border border-brand-200 text-brand-600 flex items-center justify-center font-bold text-xs uppercase">
                             {cleanUsername ? cleanUsername[0] : 'U'}
                           </div>
                           <div>
@@ -168,12 +168,12 @@ export default function UsersManager({
                                   href={tgLink}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="font-semibold text-white hover:text-brand-400 transition"
+                                  className="font-semibold text-neutral-900 hover:text-brand-600 transition"
                                 >
                                   {rawUsername || 'Anonymous'}
                                 </a>
                               ) : (
-                                <span className="font-semibold text-white">{rawUsername || 'Anonymous'}</span>
+                                <span className="font-semibold text-neutral-900">{rawUsername || 'Anonymous'}</span>
                               )}
                               {tgLink && <i className="fa-brands fa-telegram text-brand-500 text-xs"></i>}
                             </div>
@@ -186,17 +186,17 @@ export default function UsersManager({
                       <td className="px-4 py-4">
                         {u.payment_details && u.payment_details.trim().length > 0 ? (
                           <div className="flex items-start gap-1.5 max-w-[220px]">
-                            <span className="font-mono text-xs text-success-500 break-words">{u.payment_details}</span>
+                            <span className="font-mono text-xs text-success-700 font-medium break-words">{u.payment_details}</span>
                             <button
                               onClick={() => onCopy(u.payment_details, 'Bank Details')}
-                              className="text-neutral-500 hover:text-neutral-300 shrink-0 mt-0.5"
+                              className="text-neutral-400 hover:text-neutral-600 shrink-0 mt-0.5"
                               title="Copy"
                             >
                               <Copy className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => onEditUser(u)}
-                              className="text-neutral-500 hover:text-brand-500 shrink-0 mt-0.5"
+                              className="text-neutral-400 hover:text-brand-600 shrink-0 mt-0.5"
                               title="Edit"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
@@ -204,10 +204,10 @@ export default function UsersManager({
                           </div>
                         ) : (
                           <div className="flex items-center gap-1.5">
-                            <span className="text-neutral-500 text-xs italic">Not provided</span>
+                            <span className="text-neutral-400 text-xs italic">Not provided</span>
                             <button
                               onClick={() => onEditUser(u)}
-                              className="text-brand-500 hover:underline text-xs flex items-center gap-1 font-medium"
+                              className="text-brand-600 hover:underline text-xs flex items-center gap-1 font-medium"
                             >
                               <Plus className="w-3 h-3" /> Add
                             </button>
@@ -219,19 +219,19 @@ export default function UsersManager({
                       <td className="px-4 py-4">
                         <div className="space-y-1.5">
                           {socials.length === 0 ? (
-                            <span className="text-neutral-500 text-xs italic">No accounts linked</span>
+                            <span className="text-neutral-400 text-xs italic">No accounts linked</span>
                           ) : (
                             <div className="flex flex-wrap gap-1.5">
                               {socials.map((sa) => (
                                 <div
                                   key={sa.id}
-                                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-neutral-900 border border-neutral-800 text-xs text-neutral-200"
+                                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-neutral-100 border border-neutral-200 text-xs text-neutral-800"
                                 >
                                   {getPlatformIcon(sa.platform)}
                                   <span className="font-medium font-mono">{sa.handle}</span>
                                   <button
                                     onClick={() => onEditSocial(sa, u.chat_id)}
-                                    className="text-neutral-500 hover:text-brand-500 ml-0.5"
+                                    className="text-neutral-400 hover:text-brand-600 ml-0.5"
                                     title="Edit account & password"
                                   >
                                     <Edit2 className="w-3 h-3" />
@@ -243,7 +243,7 @@ export default function UsersManager({
                           <div>
                             <button
                               onClick={() => onAddSocial(u.chat_id)}
-                              className="text-[11px] text-brand-500 hover:text-brand-400 flex items-center gap-1"
+                              className="text-[11px] text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1"
                             >
                               <Plus className="w-3 h-3" /> Link another account
                             </button>
@@ -254,7 +254,7 @@ export default function UsersManager({
                       {/* Unencrypted Passwords Column */}
                       <td className="px-4 py-4">
                         {socials.length === 0 ? (
-                          <span className="text-neutral-500 text-xs italic">None</span>
+                          <span className="text-neutral-400 text-xs italic">None</span>
                         ) : (
                           <div className="flex flex-col gap-1.5">
                             {socials.map((sa) => {
@@ -264,31 +264,33 @@ export default function UsersManager({
                               return (
                                 <div
                                   key={sa.id}
-                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-950 border border-neutral-800 text-xs font-mono transition ${
-                                    isRevealed ? 'password-unmasked' : 'text-neutral-400'
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono transition border ${
+                                    isRevealed
+                                      ? 'password-unmasked'
+                                      : 'bg-neutral-50 border-neutral-200 text-neutral-600'
                                   }`}
                                 >
                                   <span className="text-[11px] uppercase tracking-wider text-neutral-500 font-sans">
                                     {sa.platform}:
                                   </span>
                                   <span className="tracking-wide select-all">
-                                    {isRevealed ? passValue || <i className="text-neutral-600">empty</i> : '••••••••'}
+                                    {isRevealed ? passValue || <i className="text-neutral-400">empty</i> : '••••••••'}
                                   </span>
                                   <div className="flex items-center gap-1 ml-auto">
                                     <button
                                       onClick={() => togglePassword(sa.id)}
-                                      className="text-neutral-400 hover:text-white p-0.5 rounded transition"
+                                      className="text-neutral-400 hover:text-neutral-700 p-0.5 rounded transition"
                                       title={isRevealed ? 'Hide' : 'View unencrypted'}
                                     >
                                       {isRevealed ? (
-                                        <EyeOff className="w-3.5 h-3.5 text-brand-500" />
+                                        <EyeOff className="w-3.5 h-3.5 text-brand-600" />
                                       ) : (
                                         <Eye className="w-3.5 h-3.5" />
                                       )}
                                     </button>
                                     <button
                                       onClick={() => onCopy(passValue, `${sa.platform} password`)}
-                                      className="text-neutral-400 hover:text-success-500 p-0.5 rounded transition"
+                                      className="text-neutral-400 hover:text-success-600 p-0.5 rounded transition"
                                       title="Copy unencrypted password"
                                     >
                                       <Copy className="w-3.5 h-3.5" />
@@ -303,10 +305,10 @@ export default function UsersManager({
 
                       {/* Stats */}
                       <td className="px-4 py-4 text-right">
-                        <div className="font-mono font-semibold text-brand-400 text-xs">
+                        <div className="font-mono font-semibold text-brand-600 text-xs">
                           {Number(u.views || 0).toLocaleString()} <span className="text-neutral-500 font-normal">views</span>
                         </div>
-                        <div className="font-mono font-bold text-paid-500 text-xs">
+                        <div className="font-mono font-bold text-paid-600 text-xs">
                           ${Number(u.money || 0).toFixed(2)}
                         </div>
                       </td>
@@ -315,7 +317,7 @@ export default function UsersManager({
                       <td className="px-4 py-4 text-center">
                         <button
                           onClick={() => onViewSubmissions(rawUsername)}
-                          className="px-2.5 py-1 rounded-full bg-neutral-900 hover:bg-neutral-800 text-neutral-200 font-semibold text-xs border border-neutral-800 transition"
+                          className="px-2.5 py-1 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-semibold text-xs border border-neutral-200 transition"
                           title="View user submissions"
                         >
                           {u.submission_count || 0}
@@ -327,7 +329,7 @@ export default function UsersManager({
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => onEditUser(u)}
-                            className="px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white text-xs font-medium border border-neutral-800 transition flex items-center gap-1"
+                            className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-neutral-100 text-neutral-700 hover:text-neutral-900 text-xs font-medium border border-neutral-200 transition flex items-center gap-1 shadow-sm"
                             title="Edit User Data & Bank Info"
                           >
                             <Edit2 className="w-3.5 h-3.5 text-brand-500" />
@@ -335,7 +337,7 @@ export default function UsersManager({
                           </button>
                           <button
                             onClick={() => onViewSubmissions(rawUsername)}
-                            className="px-2.5 py-1.5 rounded-lg bg-brand-500/20 hover:bg-brand-500/30 text-brand-400 text-xs font-medium border border-brand-500/30 transition"
+                            className="px-2.5 py-1.5 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold border border-brand-200 transition shadow-sm"
                           >
                             Clips
                           </button>
@@ -349,7 +351,7 @@ export default function UsersManager({
           </table>
         </div>
 
-        <div className="px-5 py-3 bg-neutral-900/60 border-t border-neutral-800 text-xs text-neutral-400 flex items-center justify-between">
+        <div className="px-5 py-3 bg-neutral-50 border-t border-neutral-200 text-xs text-neutral-500 flex items-center justify-between">
           <span>Showing {filteredUsers.length} of {users.length} clippers</span>
           <span className="text-neutral-500">Unencrypted passwords viewable &amp; editable by admin</span>
         </div>
