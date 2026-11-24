@@ -18,18 +18,29 @@ async def process_payment_info(message: types.Message, state: FSMContext):
         return
 
     chat_id = message.chat.id
-    await db.update_payment_info(chat_id, text)
+    fsm_data = await state.get_data()
+    mode = fsm_data.get("payment_mode", "add")
+
+    if mode == "replace":
+        await db.update_payment_info(chat_id, text)
+        updated_details = [text]
+    else:
+        combined = await db.add_payment_detail(chat_id, text)
+        updated_details = [l.strip() for l in combined.split("\n") if l.strip()]
 
     user = await db.get_user(chat_id)
     telegram_username = user["telegram_username"] if user else f"id_{chat_id}"
 
+    action_label = "Replaced all payment details" if mode == "replace" else "Added new payment method"
+
     # Notify admin(s) with user bank info
     admin_notification = (
-        f"💳 <b>Payment Details Submitted!</b>\n\n"
+        f"💳 <b>Payment Details Updated!</b>\n\n"
         f"<b>username:</b> {html.escape(telegram_username)}\n"
-        f"<b>chat_id:</b> <code>{chat_id}</code>\n\n"
-        f"<b>Bank Details:</b>\n"
-        f"<code>{html.escape(text)}</code>"
+        f"<b>chat_id:</b> <code>{chat_id}</code>\n"
+        f"<b>Action:</b> {action_label}\n\n"
+        f"<b>Active Payment Details ({len(updated_details)}):</b>\n"
+        + "\n".join([f"• <code>{html.escape(d)}</code>" for d in updated_details])
     )
 
     for admin_id in ADMIN_IDS:
@@ -42,15 +53,20 @@ async def process_payment_info(message: types.Message, state: FSMContext):
         title="💳 Payment Details Updated",
         fields=[
             {"name": "👤 User", "value": telegram_username, "inline": True},
-            {"name": "🏦 Bank Details", "value": text, "inline": False},
+            {"name": "⚙️ Action", "value": action_label, "inline": True},
+            {"name": "🏦 Payment Details", "value": "\n".join(updated_details), "inline": False},
         ],
         color=0xF1C40F,
     )
 
     await state.clear()
     await state.set_state(BotStates.main_menu)
+
+    formatted_list = "\n".join([f"{i}. <code>{html.escape(d)}</code>" for i, d in enumerate(updated_details, 1)])
     await message.answer(
-        f"✅ Payment details saved successfully!\n\n"
-        f"<b>Saved Details:</b>\n<code>{html.escape(text)}</code>",
+        f"✅ <b>Payment Details Saved!</b>\n\n"
+        f"<b>Your Saved Payment Methods ({len(updated_details)}):</b>\n"
+        f"{formatted_list}\n\n"
+        "💡 <i>You can add more payment accounts or manage them anytime under 💳 Payment.</i>",
         reply_markup=get_main_menu_keyboard(),
     )

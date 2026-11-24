@@ -120,21 +120,53 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
                     reply_markup=get_main_menu_keyboard(),
                 )
         elif data == "menu_payment":
-            await state.set_state(BotStates.entering_payment)
-            user = await db.get_user(chat_id)
-            current_info = user.get("payment_info") if user else None
-
-            if current_info:
+            details = await db.get_user_payment_details(chat_id)
+            if details:
+                formatted_lines = [f"{i}. <code>{html.escape(d)}</code>" for i, d in enumerate(details, 1)]
                 msg_text = (
-                    f"💳 <b>Current Payment Details:</b>\n"
-                    f"<code>{html.escape(current_info)}</code>\n\n"
-                    f"Write your bank name and bank account number to update:"
+                    "💳 <b>Your Saved Payment Details:</b>\n\n"
+                    + "\n".join(formatted_lines)
+                    + "\n\n💡 <i>You can save multiple payment methods (e.g. CBE, Telebirr, Abyssinia, Awash, etc.). Admin will use these for your payouts.</i>"
                 )
+                keyboard = InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [InlineKeyboardButton(text="➕ Add Another Payment Method", callback_data="pay_add")],
+                        [InlineKeyboardButton(text="🔄 Replace All Details", callback_data="pay_replace")],
+                        [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="back_to_menu")],
+                    ]
+                )
+                await callback.message.edit_text(msg_text, reply_markup=keyboard)
             else:
-                msg_text = "Write your bank name and bank account number:"
-
+                await state.set_state(BotStates.entering_payment)
+                await state.update_data(payment_mode="add")
+                await callback.message.edit_text(
+                    "💳 <b>Set Your Payment Details</b>\n\n"
+                    "Please write your bank/wallet name and account number:\n\n"
+                    "<i>Examples:</i>\n"
+                    "• <code>CBE: 100012345678</code>\n"
+                    "• <code>Telebirr: 0911223344</code>\n"
+                    "• <code>Bank of Abyssinia: 98765432</code>",
+                    reply_markup=get_back_keyboard(),
+                )
+        elif data == "pay_add":
+            await state.set_state(BotStates.entering_payment)
+            await state.update_data(payment_mode="add")
             await callback.message.edit_text(
-                msg_text,
+                "➕ <b>Add Another Payment Detail:</b>\n\n"
+                "Please enter your additional bank or wallet account number:\n\n"
+                "<i>Examples:</i>\n"
+                "• <code>Telebirr: 0911223344</code>\n"
+                "• <code>CBE: 100012345678</code>\n"
+                "• <code>Dashen Bank: 1234567890</code>",
+                reply_markup=get_back_keyboard(),
+            )
+        elif data == "pay_replace":
+            await state.set_state(BotStates.entering_payment)
+            await state.update_data(payment_mode="replace")
+            await callback.message.edit_text(
+                "🔄 <b>Replace All Payment Details:</b>\n\n"
+                "Send your new bank or wallet details. This will replace your previous entries:\n\n"
+                "<i>Example:</i> <code>CBE: 100012345678</code>",
                 reply_markup=get_back_keyboard(),
             )
         elif data == "menu_submissions":

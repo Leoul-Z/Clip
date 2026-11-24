@@ -209,6 +209,32 @@ class Database:
                 )
                 await db.commit()
 
+    async def add_payment_detail(self, chat_id: int, new_detail: str) -> str:
+        """Appends a new payment detail to the user's existing details."""
+        clean_detail = new_detail.strip()
+        user = await self.get_user(chat_id)
+        current = (user.get("payment_info") or "").strip() if user else ""
+        if current:
+            existing_lines = [l.strip() for l in current.split("\n") if l.strip()]
+            if clean_detail not in existing_lines:
+                existing_lines.append(clean_detail)
+            combined = "\n".join(existing_lines)
+        else:
+            combined = clean_detail
+
+        await self.update_payment_info(chat_id, combined)
+        return combined
+
+    async def get_user_payment_details(self, chat_id: int) -> list[str]:
+        """Returns a list of distinct payment details saved by the user."""
+        user = await self.get_user(chat_id)
+        if not user:
+            return []
+        raw = (user.get("payment_info") or "").strip()
+        if not raw:
+            return []
+        return [l.strip() for l in raw.split("\n") if l.strip()]
+
     async def get_user_by_username(self, username: str):
         clean_user = username.strip()
         if not clean_user.startswith("@"):

@@ -48,6 +48,7 @@ def register_all_handlers(dp: Dispatcher):
     dp.callback_query.register(
         menu_callback_router,
         F.data.startswith("menu_")
+        | F.data.startswith("pay_")
         | (F.data == "back_to_menu")
         | (F.data == "sub_new"),
     )

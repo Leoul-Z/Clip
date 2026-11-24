@@ -182,22 +182,49 @@ export default function UsersManager({
                         </div>
                       </td>
 
-                      {/* Bank / Payment Info (Read-Only for Admin) */}
+                      {/* Bank / Payment Info (Multiple Details Supported) */}
                       <td className="px-4 py-4">
-                        {u.payment_details && u.payment_details.trim().length > 0 ? (
-                          <div className="flex items-start gap-1.5 max-w-[220px]">
-                            <span className="font-mono text-xs text-success-700 font-medium break-words">{u.payment_details}</span>
-                            <button
-                              onClick={() => onCopy(u.payment_details, 'Bank Details')}
-                              className="text-neutral-400 hover:text-neutral-600 shrink-0 mt-0.5 p-1 rounded hover:bg-neutral-100 transition"
-                              title="Copy Bank Details"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-neutral-400 text-xs italic">Not provided yet</span>
-                        )}
+                        {(() => {
+                          const paymentLines = (u.payment_details || '')
+                            .split('\n')
+                            .map((l) => l.trim())
+                            .filter(Boolean);
+
+                          if (paymentLines.length === 0) {
+                            return <span className="text-neutral-400 text-xs italic">Not provided yet</span>;
+                          }
+
+                          return (
+                            <div className="space-y-1.5 max-w-[260px]">
+                              {paymentLines.map((line, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-center justify-between gap-2 px-2.5 py-1 rounded-lg bg-success-50 border border-success-200 text-xs font-mono text-success-800"
+                                >
+                                  <span className="truncate select-all" title={line}>
+                                    {paymentLines.length > 1 ? `${idx + 1}. ` : ''}{line}
+                                  </span>
+                                  <button
+                                    onClick={() => onCopy(line, `Payment detail #${idx + 1}`)}
+                                    className="text-success-600 hover:text-success-800 shrink-0 p-0.5 rounded hover:bg-success-100 transition"
+                                    title="Copy this payment detail"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ))}
+                              {paymentLines.length > 1 && (
+                                <button
+                                  onClick={() => onCopy(paymentLines.join('\n'), 'All payment details')}
+                                  className="text-[10px] text-neutral-500 hover:text-neutral-700 font-medium underline flex items-center gap-1 mt-0.5"
+                                  title="Copy all payment details together"
+                                >
+                                  <Copy className="w-2.5 h-2.5" /> Copy all ({paymentLines.length})
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Linked Social Accounts (Read-Only for Admin) */}
