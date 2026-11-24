@@ -7,6 +7,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from bot.database import db
 from bot.keyboards import get_back_keyboard, get_main_menu_keyboard, get_platforms_keyboard
 from bot.states import BotStates
+from bot.utils import mask_username
 
 async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext):
     data = callback.data
@@ -207,11 +208,12 @@ async def menu_callback_router(callback: types.CallbackQuery, state: FSMContext)
                 ]
                 for idx, clipper in enumerate(top_clippers):
                     medal = medals[idx] if idx < len(medals) else f"<b>{idx+1}.</b>"
-                    username = clipper["telegram_username"] or "Anonymous Clipper"
+                    raw_uname = clipper.get("telegram_username")
+                    masked = mask_username(raw_uname)
                     views = clipper["views"]
                     money = clipper["money"]
                     lines.append(
-                        f"{medal} <b>{html.escape(username)}</b>\n"
+                        f"{medal} <b>{html.escape(masked)}</b>\n"
                         f"   👁 Views: <b>{views:,}</b> | 💰 Earnings: <b>{money:,.2f} ETB</b>\n"
                     )
                 lines.append("🔥 <i>Keep clipping and posting to climb the ranks!</i>")

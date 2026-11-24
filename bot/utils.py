@@ -1,5 +1,30 @@
 import html
 
+def mask_username(username: str | None) -> str:
+    """
+    Masks a Telegram username so only the first 2-3 characters are visible
+    and the remaining characters are masked with asterisks for privacy.
+    Examples:
+      '@johndoe'   -> '@joh****'
+      '@alexander' -> '@ale******'
+      '@sam'       -> '@sa*'
+      '@ab'        -> '@ab***'
+      None         -> 'Ano***'
+    """
+    if not username:
+        return "Ano***"
+
+    uname = username.strip()
+    prefix = "@" if uname.startswith("@") else ""
+    raw = uname[1:] if uname.startswith("@") else uname
+
+    if len(raw) <= 2:
+        return f"{prefix}{raw}***"
+    elif len(raw) == 3:
+        return f"{prefix}{raw[:2]}*"
+    else:
+        return f"{prefix}{raw[:3]}{'*' * (len(raw) - 3)}"
+
 def format_user_data_card(
     target_user: dict, socials: list, submissions: list, is_admin: bool
 ) -> str:
