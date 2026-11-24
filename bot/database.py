@@ -9,66 +9,71 @@ class Database:
         self.db_path = "bot_database.db"
 
     async def connect(self):
+        if self.pool is not None:
+            return
         if self.is_postgres:
             import asyncpg
             dsn = self.dsn
             if dsn.startswith("postgres://"):
                 dsn = dsn.replace("postgres://", "postgresql://", 1)
             self.pool = await asyncpg.create_pool(dsn, min_size=1, max_size=10)
-            async with self.pool.acquire() as conn:
-                await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS users (
-                        id                SERIAL PRIMARY KEY,
-                        chat_id           BIGINT UNIQUE NOT NULL,
-                        telegram_username VARCHAR(64),
-                        payment_details   TEXT,
-                        created_at        TIMESTAMP NOT NULL DEFAULT NOW()
-                    );
+            try:
+                async with self.pool.acquire() as conn:
+                    await conn.execute("""
+                        CREATE TABLE IF NOT EXISTS users (
+                            id                SERIAL PRIMARY KEY,
+                            chat_id           BIGINT UNIQUE NOT NULL,
+                            telegram_username VARCHAR(64),
+                            payment_details   TEXT,
+                            created_at        TIMESTAMP NOT NULL DEFAULT NOW()
+                        );
 
-                    CREATE TABLE IF NOT EXISTS social_accounts (
-                        id                 SERIAL PRIMARY KEY,
-                        user_id            INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                        platform           VARCHAR(20) NOT NULL
-                                           CHECK (platform IN ('twitter','tiktok','youtube','instagram')),
-                        handle             VARCHAR(100) NOT NULL,
-                        password_encrypted TEXT,
-                        created_at         TIMESTAMP NOT NULL DEFAULT NOW(),
-                        UNIQUE (platform, handle),
-                        UNIQUE (user_id, platform)
-                    );
+                        CREATE TABLE IF NOT EXISTS social_accounts (
+                            id                 SERIAL PRIMARY KEY,
+                            user_id            INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            platform           VARCHAR(20) NOT NULL
+                                               CHECK (platform IN ('twitter','tiktok','youtube','instagram')),
+                            handle             VARCHAR(100) NOT NULL,
+                            password_encrypted TEXT,
+                            created_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+                            UNIQUE (platform, handle),
+                            UNIQUE (user_id, platform)
+                        );
 
-                    CREATE TABLE IF NOT EXISTS submissions (
-                        id                SERIAL PRIMARY KEY,
-                        user_id           INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                        social_account_id INT NOT NULL REFERENCES social_accounts(id) ON DELETE CASCADE,
-                        link              TEXT NOT NULL,
-                        caption           TEXT,
-                        views             INT NOT NULL DEFAULT 0,
-                        payment_amount    NUMERIC(10,2) DEFAULT 0.0,
-                        status            VARCHAR(20) NOT NULL DEFAULT 'pending'
-                                          CHECK (status IN ('pending','under_review','approved','rejected')),
-                        submitted_at      TIMESTAMP NOT NULL DEFAULT NOW()
-                    );
+                        CREATE TABLE IF NOT EXISTS submissions (
+                            id                SERIAL PRIMARY KEY,
+                            user_id           INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            social_account_id INT NOT NULL REFERENCES social_accounts(id) ON DELETE CASCADE,
+                            link              TEXT NOT NULL,
+                            caption           TEXT,
+                            views             INT NOT NULL DEFAULT 0,
+                            payment_amount    NUMERIC(10,2) DEFAULT 0.0,
+                            status            VARCHAR(20) NOT NULL DEFAULT 'pending'
+                                              CHECK (status IN ('pending','under_review','approved','rejected')),
+                            submitted_at      TIMESTAMP NOT NULL DEFAULT NOW()
+                        );
 
-                    CREATE INDEX IF NOT EXISTS idx_social_user      ON social_accounts(user_id);
-                    CREATE INDEX IF NOT EXISTS idx_submissions_user ON submissions(user_id);
-                    CREATE INDEX IF NOT EXISTS idx_submissions_acct ON submissions(social_account_id);
-                    CREATE INDEX IF NOT EXISTS idx_submissions_stat ON submissions(status);
+                        CREATE INDEX IF NOT EXISTS idx_social_user      ON social_accounts(user_id);
+                        CREATE INDEX IF NOT EXISTS idx_submissions_user ON submissions(user_id);
+                        CREATE INDEX IF NOT EXISTS idx_submissions_acct ON submissions(social_account_id);
+                        CREATE INDEX IF NOT EXISTS idx_submissions_stat ON submissions(status);
 
-                    CREATE TABLE IF NOT EXISTS platform_rates (
-                        platform      VARCHAR(20) PRIMARY KEY,
-                        rate_per_1000 NUMERIC(10,2) NOT NULL DEFAULT 50.00,
-                        updated_at    TIMESTAMP NOT NULL DEFAULT NOW()
-                    );
+                        CREATE TABLE IF NOT EXISTS platform_rates (
+                            platform      VARCHAR(20) PRIMARY KEY,
+                            rate_per_1000 NUMERIC(10,2) NOT NULL DEFAULT 50.00,
+                            updated_at    TIMESTAMP NOT NULL DEFAULT NOW()
+                        );
 
-                    INSERT INTO platform_rates (platform, rate_per_1000)
-                    VALUES 
-                        ('youtube', 60.00),
-                        ('tiktok', 60.00),
-                        ('twitter', 45.00),
-                        ('instagram', 40.00)
-                    ON CONFLICT (platform) DO NOTHING;
-                """)
+                        INSERT INTO platform_rates (platform, rate_per_1000)
+                        VALUES 
+                            ('youtube', 60.00),
+                            ('tiktok', 60.00),
+                            ('twitter', 45.00),
+                            ('instagram', 40.00)
+                        ON CONFLICT (platform) DO NOTHING;
+                    """)
+            except Exception as e:
+                logging.info(f"Database schema init note: {e}")
             logging.info(" Connected to Neon PostgreSQL database.")
         else:
             import aiosqlite

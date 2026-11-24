@@ -19,7 +19,8 @@ from backend.main import app as fastapi_app
 logging.basicConfig(level=logging.INFO)
 
 async def run_bot():
-    await bot_db.connect()
+    if not bot_db.pool:
+        await bot_db.connect()
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
     register_all_handlers(dp)
@@ -39,6 +40,12 @@ async def run_web():
     await server.serve()
 
 async def main():
+    # Pre-initialize database schema safely before launching web & bot
+    try:
+        await bot_db.connect()
+    except Exception as e:
+        logging.warning(f"Database pre-init note: {e}")
+
     # Run both web server and bot concurrently
     await asyncio.gather(
         run_web(),

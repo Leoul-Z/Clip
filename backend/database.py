@@ -9,27 +9,32 @@ class BackendDatabase:
         self.db_path = "bot_database.db"
 
     async def connect(self):
+        if self.pool is not None:
+            return
         if self.is_postgres:
             import asyncpg
             dsn = self.dsn
             if dsn.startswith("postgres://"):
                 dsn = dsn.replace("postgres://", "postgresql://", 1)
             self.pool = await asyncpg.create_pool(dsn, min_size=1, max_size=10)
-            async with self.pool.acquire() as conn:
-                await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS platform_rates (
-                        platform      VARCHAR(20) PRIMARY KEY,
-                        rate_per_1000 NUMERIC(10,2) NOT NULL DEFAULT 50.00,
-                        updated_at    TIMESTAMP NOT NULL DEFAULT NOW()
-                    );
-                    INSERT INTO platform_rates (platform, rate_per_1000)
-                    VALUES 
-                        ('youtube', 60.00),
-                        ('tiktok', 60.00),
-                        ('twitter', 45.00),
-                        ('instagram', 40.00)
-                    ON CONFLICT (platform) DO NOTHING;
-                """)
+            try:
+                async with self.pool.acquire() as conn:
+                    await conn.execute("""
+                        CREATE TABLE IF NOT EXISTS platform_rates (
+                            platform      VARCHAR(20) PRIMARY KEY,
+                            rate_per_1000 NUMERIC(10,2) NOT NULL DEFAULT 50.00,
+                            updated_at    TIMESTAMP NOT NULL DEFAULT NOW()
+                        );
+                        INSERT INTO platform_rates (platform, rate_per_1000)
+                        VALUES 
+                            ('youtube', 60.00),
+                            ('tiktok', 60.00),
+                            ('twitter', 45.00),
+                            ('instagram', 40.00)
+                        ON CONFLICT (platform) DO NOTHING;
+                    """)
+            except Exception as e:
+                logging.info(f"Backend platform rates init note: {e}")
             logging.info("Backend connected to PostgreSQL database.")
         else:
             import aiosqlite
