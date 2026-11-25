@@ -90,6 +90,11 @@ class SendMessageRequest(BaseModel):
 class UpdateRatesRequest(BaseModel):
     rates: dict[str, float]
 
+class ResetStatsRequest(BaseModel):
+    chat_id: Optional[int] = None
+    notify_users: bool = False
+    broadcast_message: Optional[str] = None
+
 # --- PUBLIC ROUTES ---
 @app.get("/health")
 @app.get("/ping")
@@ -312,6 +317,37 @@ async def get_platform_rates_endpoint(_: bool = Depends(get_current_admin)):
 async def update_platform_rates_endpoint(body: UpdateRatesRequest, _: bool = Depends(get_current_admin)):
     updated = await backend_db.update_platform_rates(body.rates)
     return {"success": True, "rates": updated}
+
+# --- RESET CLIPPERS STATS ---
+@app.post("/api/admin/reset-stats")
+async def reset_clippers_stats_endpoint(body: ResetStatsRequest, _: bool = Depends(get_current_admin)):
+    summary = await backend_db.reset_clippers_stats(chat_id=body.chat_id)
+
+    if body.notify_users:
+        default_msg = (
+            "🔄 <b>Campaign Round Reset Notice</b>\n\n"
+            "A new campaign round has started! Clipper views and earnings have been reset for the new cycle.\n\n"
+            "Keep clipping and submitting your links to earn for this new round! 🚀"
+        )
+        msg = (body.broadcast_message or "").strip() or default_msg
+
+        if body.chat_id is not None:
+            await send_telegram_message(body.chat_id, msg)
+        else:
+            chat_ids = await backend_db.get_all_chat_ids()
+            for cid in chat_ids:
+                try:
+                    await send_telegram_message(cid, msg)
+                    await asyncio.sleep(0.04)
+                except Exception:
+                    pass
+
+    target_str = "all clippers" if body.chat_id is None else f"clipper (Chat ID: {body.chat_id})"
+    return {
+        "success": True,
+        "summary": summary,
+        "message": f"Successfully reset views and payments for {target_str}",
+    }
 
 # --- OPTIONAL STATIC SERVING OF REACT DIST ---
 frontend_dist = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Frontend", "dist")

@@ -115,4 +115,10 @@ export const AdminAPI = {
     const res = await api.put('/api/admin/rates', { rates });
     return res.data;
   },
+
+  // Reset Clipper Stats
+  resetStats: async (data = {}) => {
+    const res = await api.post('/api/admin/reset-stats', data);
+    return res.data;
+  },
 };

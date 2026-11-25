@@ -599,6 +599,87 @@ class BackendDatabase:
                     rows = await cur.fetchall()
                     return [r[0] for r in rows]
 
+    async def reset_clippers_stats(self, chat_id: int | None = None) -> dict:
+        """
+        Resets views and payment_amount to 0 on submissions.
+        If chat_id is provided, only resets for that user.
+        If chat_id is None, resets for ALL clippers.
+        """
+        if self.is_postgres:
+            async with self.pool.acquire() as conn:
+                if chat_id is not None:
+                    user = await conn.fetchrow("SELECT id FROM users WHERE chat_id = $1", chat_id)
+                    if not user:
+                        return {"affected_submissions": 0, "total_views_reset": 0, "total_payments_reset": 0.0}
+                    user_id = user["id"]
+                    before = await conn.fetchrow("""
+                        SELECT 
+                            COUNT(*)::INTEGER AS affected,
+                            COALESCE(SUM(views), 0)::BIGINT AS views_reset,
+                            COALESCE(SUM(payment_amount), 0.0)::FLOAT AS pay_reset
+                        FROM submissions
+                        WHERE user_id = $1 AND (views > 0 OR payment_amount > 0)
+                    """, user_id)
+                    await conn.execute("UPDATE submissions SET views = 0, payment_amount = 0.0 WHERE user_id = $1", user_id)
+                else:
+                    before = await conn.fetchrow("""
+                        SELECT 
+                            COUNT(*)::INTEGER AS affected,
+                            COALESCE(SUM(views), 0)::BIGINT AS views_reset,
+                            COALESCE(SUM(payment_amount), 0.0)::FLOAT AS pay_reset
+                        FROM submissions
+                        WHERE views > 0 OR payment_amount > 0
+                    """)
+                    await conn.execute("UPDATE submissions SET views = 0, payment_amount = 0.0")
+
+                return {
+                    "affected_submissions": before["affected"] if before else 0,
+                    "total_views_reset": before["views_reset"] if before else 0,
+                    "total_payments_reset": float(before["pay_reset"] if before else 0.0),
+                }
+        else:
+            import aiosqlite
+            async with aiosqlite.connect(self.db_path) as db:
+                if chat_id is not None:
+                    async with db.execute("SELECT id FROM users WHERE chat_id = ?", (chat_id,)) as cur:
+                        user = await cur.fetchone()
+                    if not user:
+                        return {"affected_submissions": 0, "total_views_reset": 0, "total_payments_reset": 0.0}
+                    user_id = user[0]
+                    async with db.execute("""
+                        SELECT 
+                            COUNT(*),
+                            COALESCE(SUM(views), 0),
+                            COALESCE(SUM(payment_amount), 0.0)
+                        FROM submissions
+                        WHERE user_id = ? AND (views > 0 OR payment_amount > 0)
+                    """, (user_id,)) as cur:
+                        row = await cur.fetchone()
+                    affected = row[0] if row else 0
+                    views_reset = row[1] if row else 0
+                    pay_reset = float(row[2]) if row else 0.0
+                    await db.execute("UPDATE submissions SET views = 0, payment_amount = 0.0 WHERE user_id = ?", (user_id,))
+                else:
+                    async with db.execute("""
+                        SELECT 
+                            COUNT(*),
+                            COALESCE(SUM(views), 0),
+                            COALESCE(SUM(payment_amount), 0.0)
+                        FROM submissions
+                        WHERE views > 0 OR payment_amount > 0
+                    """) as cur:
+                        row = await cur.fetchone()
+                    affected = row[0] if row else 0
+                    views_reset = row[1] if row else 0
+                    pay_reset = float(row[2]) if row else 0.0
+                    await db.execute("UPDATE submissions SET views = 0, payment_amount = 0.0")
+                await db.commit()
+                return {
+                    "affected_submissions": affected,
+                    "total_views_reset": views_reset,
+                    "total_payments_reset": pay_reset,
+                }
+
     # --- PLATFORM RATES ---
     async def get_platform_rates(self) -> dict[str, float]:
         defaults = {"youtube": 60.0, "tiktok": 60.0, "twitter": 45.0, "instagram": 40.0}

@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function Navbar({ onRefresh, onLogout, onOpenBroadcast, onOpenRates, isRefreshing }) {
+export default function Navbar({ onRefresh, onLogout, onOpenBroadcast, onOpenRates, onOpenResetStats, isRefreshing }) {
   return (
     <header className="flex w-full items-center justify-between gap-2 sm:gap-4 border-b border-solid border-neutral-border bg-default-background px-4 sm:px-8 lg:px-20 py-3 sticky top-0 z-40">
       <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
@@ -76,6 +76,31 @@ export default function Navbar({ onRefresh, onLogout, onOpenBroadcast, onOpenRat
           </svg>
           <span className="text-body font-body text-neutral-600 hidden md:inline">
             Pricing rates
+          </span>
+        </button>
+
+        <button
+          onClick={onOpenResetStats}
+          className="flex items-center gap-1.5 rounded-sm px-2.5 sm:px-3 py-1.5 hover:bg-error-50 transition cursor-pointer text-neutral-600 hover:text-error-700"
+          title="Reset verified views & payments of all clippers"
+        >
+          <svg
+            className="text-[14px]"
+            width="1em"
+            height="1em"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8m0-5v5h5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span className="text-body font-body hidden lg:inline">
+            Reset stats
           </span>
         </button>
 

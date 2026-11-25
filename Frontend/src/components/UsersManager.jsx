@@ -7,6 +7,7 @@ export default function UsersManager({
   onSendMessage,
   onCopy,
   onReviewSocial,
+  onOpenResetStats,
 }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
@@ -189,8 +190,38 @@ export default function UsersManager({
           >
             <div className="flex h-3 w-3 flex-none items-start rounded-full bg-default-background shadow-xs" />
           </div>
-          <span className="text-body font-body text-neutral-700">
+          <span className="text-body font-body text-neutral-700 whitespace-nowrap">
             Show passwords
+          </span>
+        </button>
+
+        {/* Reset All Views & Payments Button */}
+        <button
+          type="button"
+          onClick={onOpenResetStats}
+          className="flex items-center gap-1.5 rounded-sm border border-solid border-error-200 bg-error-50/50 hover:bg-error-100 text-error-700 px-3 py-2 transition cursor-pointer select-none shrink-0"
+          title="Reset verified views and payout earnings for all clippers"
+        >
+          <svg className="text-[14px]" width="1em" height="1em" viewBox="0 0 24 24">
+            <path
+              d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M3 3v5h5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span className="text-body font-body font-medium whitespace-nowrap">
+            Reset all stats
           </span>
         </button>
       </div>

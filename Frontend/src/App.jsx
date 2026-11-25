@@ -7,6 +7,7 @@ import EditSocialModal from './components/EditSocialModal';
 import ReviewSocialModal from './components/ReviewSocialModal';
 import EditSubmissionModal from './components/EditSubmissionModal';
 import RatesModal from './components/RatesModal';
+import ResetStatsModal from './components/ResetStatsModal';
 import SendMessageModal from './components/SendMessageModal';
 import LoginModal from './components/LoginModal';
 import Toast from './components/Toast';
@@ -50,6 +51,7 @@ export default function App() {
   const [isSubModalOpen, setIsSubModalOpen] = useState(false);
 
   const [isRatesModalOpen, setIsRatesModalOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   const handleOpenReviewSocial = (social, user) => {
     setReviewingSocial(social);
@@ -285,6 +287,18 @@ export default function App() {
     }
   };
 
+  const handleResetStats = async (payload) => {
+    try {
+      const res = await AdminAPI.resetStats(payload);
+      addToast(res.message || 'Views and payments reset successfully!', 'success');
+      loadData();
+    } catch (err) {
+      console.error('Reset stats error:', err);
+      addToast(err.response?.data?.detail || 'Failed to reset views and payments.', 'error');
+      throw err;
+    }
+  };
+
   return (
     <div className="flex min-h-screen w-full flex-col items-start bg-page-background text-default-font">
       <Navbar
@@ -292,6 +306,7 @@ export default function App() {
         onLogout={handleLogout}
         onOpenBroadcast={handleOpenBroadcast}
         onOpenRates={() => setIsRatesModalOpen(true)}
+        onOpenResetStats={() => setIsResetModalOpen(true)}
         isRefreshing={isRefreshing}
       />
 
@@ -425,6 +440,7 @@ export default function App() {
             onSendMessage={handleOpenUserMessage}
             onCopy={copyToClipboard}
             onReviewSocial={handleOpenReviewSocial}
+            onOpenResetStats={() => setIsResetModalOpen(true)}
           />
         )}
 
@@ -485,6 +501,13 @@ export default function App() {
         rates={rates}
         onClose={() => setIsRatesModalOpen(false)}
         onSave={handleSaveRates}
+      />
+
+      <ResetStatsModal
+        isOpen={isResetModalOpen}
+        stats={stats}
+        onClose={() => setIsResetModalOpen(false)}
+        onConfirm={handleResetStats}
       />
 
       {/* Toast Alerts */}
